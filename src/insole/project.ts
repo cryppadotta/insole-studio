@@ -39,7 +39,7 @@ export const PREFERENCES_COOKIE = "insole_studio_ui";
 export interface StudioPreferences {
   side?: Foot;
   step?: "shape" | "support" | "density" | "print";
-  feature?: "outline" | "arch" | "heel" | "met";
+  feature?: "outline" | "arch" | "heel" | "met" | "base";
   selectedPadId?: string;
   selectedDensityZoneId?: string;
   sizeSystem?: string;
@@ -234,6 +234,13 @@ function readFoot(
   version: 1 | 2 | 3,
 ): InsoleParams {
   if (!isRecord(value)) throw new Error("The project must contain both feet.");
+  // Heel lift was added to v3 without changing the format version. Omission
+  // means the original, unraised heel; a supplied value still requires validation.
+  const heelLift = Object.prototype.hasOwnProperty.call(value, "heelLift")
+    ? value.heelLift
+    : 0;
+  if (!validNumber(heelLift, PARAM_LIMITS.heelLift))
+    throw new Error(`Invalid ${side} foot parameter: heelLift.`);
   if (version === 1) {
     for (const key of Object.keys(
       LEGACY_LIMITS,
@@ -245,6 +252,7 @@ function readFoot(
     for (const key of NUMERIC_PARAM_KEYS) {
       if (key in LEGACY_LIMITS) migrated[key] = value[key] as number;
     }
+    migrated.heelLift = heelLift as number;
     migrated.pads = [
       {
         ...makePad(0),
@@ -267,9 +275,10 @@ function readFoot(
   }
   const result = cloneParams(DEFAULT_PARAMS);
   for (const key of NUMERIC_PARAM_KEYS) {
-    if (!validNumber(value[key], PARAM_LIMITS[key]))
+    const number = key === "heelLift" ? heelLift : value[key];
+    if (!validNumber(number, PARAM_LIMITS[key]))
       throw new Error(`Invalid ${side} foot parameter: ${key}.`);
-    result[key] = value[key] as number;
+    result[key] = number as number;
   }
   result.pads = readPads(value.pads, side);
   if (version === 3)
@@ -455,7 +464,8 @@ function cleanPreferences(value: unknown): StudioPreferences {
     value.feature === "outline" ||
     value.feature === "arch" ||
     value.feature === "heel" ||
-    value.feature === "met"
+    value.feature === "met" ||
+    value.feature === "base"
   )
     preferences.feature = value.feature;
   for (const key of [

@@ -61,6 +61,7 @@ describe("insole project files", () => {
     independent.linked = false;
     independent.name = "Walking pair";
     independent.feet.left.archHeight = 17;
+    independent.feet.left.heelLift = 6.5;
     independent.feet.left.archLength = 180;
     independent.feet.left.pads[0].offset = -9;
     independent.feet.left.pads.push({
@@ -74,6 +75,7 @@ describe("insole project files", () => {
       enabled: false,
     });
     independent.feet.right.length = 275;
+    independent.feet.right.heelLift = 11;
     const restored = parseInsoleProject(JSON.stringify(independent));
     expect(restored).toEqual(independent);
     expect(restored.feet.left).not.toBe(restored.feet.right);
@@ -101,7 +103,9 @@ describe("insole project files", () => {
     expect(migrated.feet.left).toMatchObject({
       archHeight: 21,
       archPosition: 0.49,
+      heelLift: 0,
     });
+    expect(migrated.feet.right.heelLift).toBe(0);
     expect(migrated.feet.left.pads).toHaveLength(1);
     expect(migrated.feet.left.pads[0]).toMatchObject({
       enabled: true,
@@ -124,6 +128,47 @@ describe("insole project files", () => {
     );
   });
 
+  it.each([2, 3])(
+    "loads pre-heel-lift v%i files with zero lift and preserves their shape",
+    (version) => {
+      const expected = newProject();
+      expected.linked = false;
+      expected.feet.left.archHeight = 23;
+      expected.feet.right.toeSpring = 8;
+      expected.feet.left.pads[0].rotation = -41;
+      if (version === 3)
+        expected.feet.left.density.heel = { infill: 12, scope: "full" };
+      const previous = JSON.parse(JSON.stringify(expected));
+      previous.version = version;
+      for (const side of ["left", "right"] as const) {
+        delete previous.feet[side].heelLift;
+        if (version === 2) delete previous.feet[side].density;
+      }
+      expect(parseInsoleProject(JSON.stringify(previous))).toEqual(expected);
+    },
+  );
+
+  it.each([1, 2, 3])(
+    "validates an explicitly supplied heel lift in v%i files",
+    (version) => {
+      const original = version === 1 ? legacyProject() : newProject();
+      const project = JSON.parse(JSON.stringify(original));
+      project.version = version;
+      project.linked = false;
+      project.feet.left.heelLift = 40;
+      project.feet.right.heelLift = 0;
+      const restored = parseInsoleProject(JSON.stringify(project));
+      expect(restored.feet.left.heelLift).toBe(40);
+      expect(restored.feet.right.heelLift).toBe(0);
+      for (const invalid of [-0.1, 40.1, "5", null, true, {}, NaN, Infinity]) {
+        project.feet.left.heelLift = invalid;
+        expect(() => parseInsoleProject(JSON.stringify(project))).toThrow(
+          /invalid left foot parameter: heelLift/i,
+        );
+      }
+    },
+  );
+
   it("approximates a v1 pad's original broad slope without changing v2 curve choices", () => {
     const migrated = parseInsoleProject(JSON.stringify(legacyProject()));
     const pad = migrated.feet.left.pads[0];
@@ -144,7 +189,7 @@ describe("insole project files", () => {
 
   it("rejects linked pairs with different scalar, pad, enabled, or order fields", () => {
     const scalar = newProject();
-    scalar.feet.left.archHeight = 18;
+    scalar.feet.left.heelLift = 18;
     expect(() => parseInsoleProject(JSON.stringify(scalar))).toThrow(
       /linked pair.*matching/i,
     );
@@ -249,6 +294,36 @@ describe("insole project files", () => {
 });
 
 describe("insole autosave storage", () => {
+  it("reloads new heel lift edits and recovers old v3 autosaves without changing their shape", () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const previous = JSON.parse(JSON.stringify(newProject()));
+    previous.feet.left.toeSpring = 7;
+    previous.feet.right.toeSpring = 7;
+    delete previous.feet.left.heelLift;
+    delete previous.feet.right.heelLift;
+    storage.entries.set(STORAGE_KEY, JSON.stringify(previous));
+    const loaded = loadInsoleProject();
+    expect(loaded.feet.left.heelLift).toBe(0);
+    expect(loaded.feet.right.heelLift).toBe(0);
+    expect(loaded.feet.left.toeSpring).toBe(7);
+    const edited = {
+      ...loaded,
+      linked: false,
+      feet: {
+        left: { ...loaded.feet.left, heelLift: 9.5 },
+        right: { ...loaded.feet.right, heelLift: 4 },
+      },
+    };
+    saveInsoleProject(edited);
+    expect(loadInsoleProject()).toEqual(edited);
+    expect(parseInsoleProject(storage.entries.get(STORAGE_KEY)!)).toEqual(
+      edited,
+    );
+    storage.entries.set(STORAGE_KEY, "{broken");
+    expect(loadInsoleProject()).toEqual(loaded);
+  });
+
   it("loads and migrates the original autosave key", () => {
     const storage = memoryStorage();
     storage.entries.set(STORAGE_KEY, JSON.stringify(legacyProject()));
@@ -517,6 +592,32 @@ describe("density project persistence", () => {
 });
 
 describe("private studio preferences", () => {
+  it("remembers Base & flex as a support feature without placing heel lift in UI storage or cookies", () => {
+    const storage = memoryStorage();
+    const mockDocument = { cookie: "" };
+    vi.stubGlobal("document", mockDocument);
+    vi.stubGlobal("localStorage", storage);
+    saveStudioPreferences({
+      step: "support",
+      feature: "base",
+      heelLift: 12,
+    } as Parameters<typeof saveStudioPreferences>[0]);
+    expect(readStudioPreferences()).toEqual({
+      step: "support",
+      feature: "base",
+    });
+    expect(JSON.parse(storage.entries.get(PREFERENCES_STORAGE_KEY)!)).toEqual({
+      step: "support",
+      feature: "base",
+    });
+    expect(mockDocument.cookie).not.toContain("heelLift");
+    storage.entries.clear();
+    expect(readStudioPreferences()).toEqual({
+      step: "support",
+      feature: "base",
+    });
+  });
+
   it("keeps full preferences in local storage and only non-sensitive UI state in the cookie", () => {
     const mockDocument = { cookie: "" };
     const storage = memoryStorage();

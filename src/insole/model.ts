@@ -43,6 +43,8 @@ export interface InsoleParams {
   archCurve1: number;
   archCurve2: number;
   heelCupHeight: number;
+  /** Added heel-seat thickness, tapering smoothly into the midfoot. */
+  heelLift: number;
   toeSpring: number;
   pads: MetPad[];
   density: DensityConfig;
@@ -68,6 +70,7 @@ export const NUMERIC_PARAM_KEYS: readonly NumericParamKey[] = [
   "archCurve1",
   "archCurve2",
   "heelCupHeight",
+  "heelLift",
   "toeSpring",
 ];
 
@@ -113,6 +116,7 @@ export const DEFAULT_PARAMS: InsoleParams = {
   archCurve1: 0.9,
   archCurve2: 0.35,
   heelCupHeight: 8,
+  heelLift: 0,
   toeSpring: 2,
   pads: [{ ...DEFAULT_PAD, id: "met-pad-1", name: "Met pad 1" }],
   density: defaultDensity(),
@@ -136,6 +140,7 @@ export const PARAM_LIMITS: Record<NumericParamKey, readonly [number, number]> =
     archCurve1: [0, 1],
     archCurve2: [0, 1],
     heelCupHeight: [0, 50],
+    heelLift: [0, 40],
     toeSpring: [0, 40],
   };
 
@@ -382,7 +387,11 @@ function height(p: InsoleParams, x: number, y: number) {
     0,
   );
   const toe = p.toeSpring * smoothstep(0.72, 1, t) ** 2;
-  return p.baseThickness + arch + cup + met + toe;
+  // Raise the whole heel seat through 15% of the foot length. Cubic smoothstep
+  // tapers this added thickness to zero at 60%, with zero slope at both joins.
+  // The bottom remains on the print bed; the heel cup rim is added separately.
+  const heelLift = p.heelLift * (1 - smoothstep(0.15, 0.6, t));
+  return p.baseThickness + arch + cup + met + toe + heelLift;
 }
 
 /** Top z in mm in canonical right-foot coordinates; mirror x for the left. */

@@ -5,6 +5,7 @@ import {
   Layers3,
   Plus,
   ShieldCheck,
+  SlidersHorizontal,
   Trash2,
 } from "lucide-react";
 import {
@@ -20,7 +21,7 @@ import CurveEditor from "./CurveEditor";
 import Measure from "./Measure";
 import DensityOverrideControl from "./DensityOverride";
 
-type Feature = "outline" | "arch" | "heel" | "met";
+type Feature = "outline" | "arch" | "heel" | "met" | "base";
 type PadNumberKey =
   | "height"
   | "position"
@@ -171,7 +172,9 @@ export default function SupportControls({
           ? 0.1
           : scale === 100
             ? 0.1
-            : key.includes("Height") || key === "toeSpring"
+            : key.includes("Height") ||
+                key === "toeSpring" ||
+                key === "heelLift"
               ? 0.5
               : 1
       }
@@ -203,9 +206,14 @@ export default function SupportControls({
     );
   return (
     <>
-      <div className="sole-feature-tabs">
+      <div
+        className="sole-feature-tabs"
+        role="group"
+        aria-label="Support sections"
+      >
         <button
           className={feature === "arch" ? "active" : ""}
+          aria-pressed={feature === "arch"}
           onClick={() => onFeature("arch")}
         >
           <Layers3 size={17} />
@@ -214,6 +222,7 @@ export default function SupportControls({
         </button>
         <button
           className={feature === "heel" ? "active" : ""}
+          aria-pressed={feature === "heel"}
           onClick={() => onFeature("heel")}
         >
           <ShieldCheck size={17} />
@@ -222,11 +231,21 @@ export default function SupportControls({
         </button>
         <button
           className={feature === "met" ? "active" : ""}
+          aria-pressed={feature === "met"}
           onClick={() => onFeature("met")}
         >
           <Footprints size={17} />
           <span>Metatarsal pads</span>
           <span className="sole-pad-count">{p.pads.length}</span>
+        </button>
+        <button
+          className={feature === "base" ? "active" : ""}
+          aria-pressed={feature === "base"}
+          onClick={() => onFeature("base")}
+        >
+          <SlidersHorizontal size={17} />
+          <span>Base & flex</span>
+          <span className="sole-feature-dot" />
         </button>
       </div>
       {feature === "arch" && (
@@ -284,6 +303,9 @@ export default function SupportControls({
             }
           />
           {field("heelCupHeight", "Heel cup height")}
+          <p className="sole-feature-description">
+            To raise the whole heel seat, use Heel lift in Base & flex.
+          </p>
         </>
       )}
       {feature === "met" && (
@@ -418,24 +440,34 @@ export default function SupportControls({
           )}
         </>
       )}
-      <div className="sole-control-heading sole-section-break">
-        <Layers3 size={15} />
-        <h3>Base & flex</h3>
-        <span>EXTENDED RANGE</span>
-      </div>
-      {field(
-        "baseThickness",
-        "Base thickness",
-        "mm",
-        1,
-        "0.8–20 mm of solid material beneath the supports.",
-      )}
-      {field(
-        "toeSpring",
-        "Toe lift",
-        "mm",
-        1,
-        "0–40 mm of upper-surface lift; the bottom stays flat.",
+      {feature === "base" && (
+        <>
+          <div className="sole-feature-description">
+            Set the base thickness, then raise the heel or toe. The underside
+            stays flat for printing.
+          </div>
+          {field(
+            "baseThickness",
+            "Base thickness",
+            "mm",
+            1,
+            "0.8–20 mm beneath the supports, before heel and toe lift.",
+          )}
+          {field(
+            "heelLift",
+            "Heel lift",
+            "mm",
+            1,
+            "0–40 mm added across the heel seat, blending smoothly to zero by 60% of the insole length.",
+          )}
+          {field(
+            "toeSpring",
+            "Toe lift",
+            "mm",
+            1,
+            "0–40 mm of upper-surface lift at the toe.",
+          )}
+        </>
       )}
     </>
   );

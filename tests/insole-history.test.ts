@@ -30,6 +30,30 @@ function expectValidProject(history: History) {
 }
 
 describe("insole pair undo history", () => {
+  it("tracks heel lift through independent edits, undo, redo and pair linking", () => {
+    let history = createHistory(newProject().feet, false);
+    history = editHistory(history, {
+      ...history.present,
+      right: { ...history.present.right, heelLift: 6.5 },
+    });
+    expect(history.past).toHaveLength(1);
+    expect(history.present.left.heelLift).toBe(0);
+    expect(history.present.right.heelLift).toBe(6.5);
+    expect(editHistory(history, history.present)).toBe(history);
+    history = undoHistory(history);
+    expect(history.present.right.heelLift).toBe(0);
+    history = redoHistory(history);
+    expect(history.present.right.heelLift).toBe(6.5);
+    history = toggleHistoryLink(history, "right");
+    expect(history.present.left.heelLift).toBe(6.5);
+    expect(history.present.right.heelLift).toBe(6.5);
+    history = undoHistory(history);
+    expect(history.linked).toBe(false);
+    expect(history.present.left.heelLift).toBe(0);
+    expect(history.present.right.heelLift).toBe(6.5);
+    expectValidProject(history);
+  });
+
   it("restores both feet and link state through unlink, independent edit, relink, undo and redo", () => {
     let history = createHistory(newProject().feet, true);
     history = toggleHistoryLink(history, "right");

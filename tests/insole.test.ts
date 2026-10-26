@@ -237,6 +237,149 @@ describe("parametric insole solid", () => {
   });
 });
 
+describe("heel lift", () => {
+  it("adds its full height across the heel seat independently of the cup rim", () => {
+    const p = clampParams({ ...DEFAULT_PARAMS, heelLift: 7.5 });
+    const withoutLift = { ...p, heelLift: 0 };
+    for (const t of [0, 0.04, 0.1, 0.15]) {
+      const edge = outlineAt(p, t);
+      for (const fraction of [0, 0.25, 0.5, 0.75, 1]) {
+        const x = edge.left + (edge.right - edge.left) * fraction;
+        expect(
+          surfaceHeight(p, x, t * p.length) -
+            surfaceHeight(withoutLift, x, t * p.length),
+        ).toBeCloseTo(7.5, 10);
+      }
+    }
+    // A heel lift raises the center even with the rim entirely disabled.
+    expect(
+      surfaceHeight(
+        { ...p, archHeight: 0, heelCupHeight: 0, pads: [] },
+        0,
+        0.1 * p.length,
+      ),
+    ).toBeCloseTo(p.baseThickness + 7.5, 10);
+  });
+
+  it("defaults older parameters to zero, preserves their shape, and clamps edits", () => {
+    expect(DEFAULT_PARAMS.heelLift).toBe(0);
+    const older = { ...DEFAULT_PARAMS } as Partial<InsoleParams>;
+    delete older.heelLift;
+    expect(clampParams(older).heelLift).toBe(0);
+    expect(clampParams({ heelLift: -5 }).heelLift).toBe(0);
+    expect(clampParams({ heelLift: 500 }).heelLift).toBe(40);
+    expect(clampParams({ heelLift: NaN }).heelLift).toBe(0);
+    const current = buildInsoleGeometry(DEFAULT_PARAMS, "right", 32);
+    const restored = buildInsoleGeometry(clampParams(older), "right", 32);
+    expect(restored.getAttribute("position").array).toEqual(
+      current.getAttribute("position").array,
+    );
+    expect(restored.getIndex()!.array).toEqual(current.getIndex()!.array);
+    current.dispose();
+    restored.dispose();
+  });
+
+  it("tapers smoothly and monotonically before the forefoot without changing toe lift", () => {
+    const p = clampParams({
+      heelLift: 40,
+      archHeight: 0,
+      heelCupHeight: 0,
+      toeSpring: 0,
+      pads: [],
+    });
+    const addedHeight = (t: number) =>
+      surfaceHeight(p, 0, t * p.length) - p.baseThickness;
+    let previous = p.heelLift;
+    for (let step = 0; step <= 600; step++) {
+      const value = addedHeight(step / 600);
+      expect(Number.isFinite(value)).toBe(true);
+      expect(value).toBeGreaterThanOrEqual(0);
+      expect(value).toBeLessThanOrEqual(previous + 1e-12);
+      previous = value;
+    }
+    expect(addedHeight(0.375)).toBeCloseTo(20, 10);
+    const epsilon = 1e-5;
+    for (const boundary of [0.15, 0.6]) {
+      const near = addedHeight(boundary - epsilon);
+      const far = addedHeight(boundary + epsilon);
+      expect(Math.abs(near - far)).toBeLessThan(1e-6);
+      expect(Math.abs((near - far) / (2 * epsilon))).toBeLessThan(0.01);
+    }
+    for (const t of [0.6, 0.72, 0.8, 1]) {
+      expect(addedHeight(t)).toBe(0);
+      const toeOnly = { ...p, heelLift: 0, toeSpring: 30 };
+      const combined = { ...p, toeSpring: 30 };
+      expect(surfaceHeight(combined, 0, t * p.length)).toBe(
+        surfaceHeight(toeOnly, 0, t * p.length),
+      );
+    }
+    expect(surfaceHeight({ ...p, toeSpring: 30 }, 0, 0.1 * p.length)).toBe(
+      surfaceHeight(p, 0, 0.1 * p.length),
+    );
+  });
+
+  it("exports thicker, mirrored, watertight solids with a flat print-bed face", () => {
+    const p = clampParams({ heelLift: 20 });
+    const base = buildInsoleGeometry({ ...p, heelLift: 0 }, "right", 64);
+    const right = buildInsoleGeometry(p, "right", 64);
+    const left = buildInsoleGeometry(p, "left", 64);
+    const r = right.getAttribute("position"),
+      l = left.getAttribute("position");
+    expect(geometryStats(right).volumeCm3).toBeGreaterThan(
+      geometryStats(base).volumeCm3 + 50,
+    );
+    expect(geometryStats(left).volumeCm3).toBeCloseTo(
+      geometryStats(right).volumeCm3,
+      6,
+    );
+    for (let i = 0; i < r.count; i++) {
+      expect(l.getX(i)).toBe(-r.getX(i));
+      expect(l.getY(i)).toBe(r.getY(i));
+      expect(l.getZ(i)).toBe(r.getZ(i));
+      if (i >= r.count / 2) expect(r.getZ(i)).toBe(0);
+    }
+    for (const geometry of [right, left]) {
+      // STL duplicates triangle vertices. Weld its exact exported float32
+      // coordinates to check that every exported edge is paired and oriented.
+      const view = new DataView(binarySTL(geometry));
+      const edges = new Map<string, { count: number; orientation: number }>();
+      const triangles = view.getUint32(80, true);
+      for (let i = 0; i < triangles; i++) {
+        const offset = 84 + i * 50;
+        const points = [0, 1, 2].map((corner) =>
+          [0, 4, 8]
+            .map((axis) => {
+              const value = view.getFloat32(
+                offset + 12 + corner * 12 + axis,
+                true,
+              );
+              expect(Number.isFinite(value)).toBe(true);
+              return value;
+            })
+            .join(","),
+        );
+        for (let j = 0; j < 3; j++) {
+          const a = points[j],
+            b = points[(j + 1) % 3];
+          const key = [a, b].sort().join("|");
+          const edge = edges.get(key) ?? { count: 0, orientation: 0 };
+          edge.count++;
+          edge.orientation += a < b ? 1 : -1;
+          edges.set(key, edge);
+        }
+      }
+      for (const edge of edges.values()) {
+        expect(edge.count).toBe(2);
+        expect(edge.orientation).toBe(0);
+      }
+    }
+    for (const side of ["left", "right"] as const) checkSolid(p, side);
+    base.dispose();
+    right.dispose();
+    left.dispose();
+  });
+});
+
 describe("editable support profiles", () => {
   const bare = () =>
     clampParams({ archHeight: 0, heelCupHeight: 0, toeSpring: 0, pads: [] });

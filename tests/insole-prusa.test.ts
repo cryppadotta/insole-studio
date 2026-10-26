@@ -168,6 +168,42 @@ describe("PrusaSlicer density exports", () => {
     ).toHaveLength(1);
   });
 
+  it("exports the full heel lift and modifiers tall enough to cover it for either foot", () => {
+    const p = cloneParams(DEFAULT_PARAMS);
+    p.heelLift = 40;
+    p.archHeight = 0;
+    p.heelCupHeight = 0;
+    p.toeSpring = 0;
+    p.pads.forEach((pad) => (pad.enabled = false));
+    p.density = { ...defaultDensity(), heel: { infill: 12, scope: "full" } };
+
+    for (const side of ["left", "right"] as const) {
+      const files = unzipSync(prusaProject(p, side));
+      const model = strFromU8(files["3D/3dmodel.model"]);
+      const volumes = readVolumes(
+        strFromU8(files["Metadata/Slic3r_PE_model.config"]),
+      );
+      const z = [
+        ...model.matchAll(/<vertex x="[^"]+" y="[^"]+" z="([^"]+)"\/>/g),
+      ].map((match) => Number(match[1]));
+      const triangles = [
+        ...model.matchAll(/<triangle v1="(\d+)" v2="(\d+)" v3="(\d+)"\/>/g),
+      ].map((match) => match.slice(1).map(Number));
+      const bounds = volumes.map((volume) => {
+        const heights = triangles
+          .slice(volume.first, volume.last + 1)
+          .flatMap((triangle) => triangle.map((vertex) => z[vertex]));
+        return { min: Math.min(...heights), max: Math.max(...heights) };
+      });
+      expect(bounds).toHaveLength(2);
+      expect(bounds[0].min).toBe(0);
+      expect(bounds[0].max).toBeCloseTo(p.baseThickness + p.heelLift, 5);
+      expect(bounds[1].min).toBe(-0.5);
+      expect(bounds[1].max).toBeGreaterThan(bounds[0].max);
+      expect(volumes[1].metadata).toContain('key="fill_density" value="12%"');
+    }
+  });
+
   it("provides an aligned binary STL for each modifier and a complete manual settings manifest", () => {
     const bundle = unzipSync(
       modifierBundle(sample(), "right", "../../unsafe-name"),

@@ -31,6 +31,7 @@ import {
   Save,
   Settings2,
   ShieldCheck,
+  SlidersHorizontal,
   Undo2,
   Unlink2,
   X,
@@ -76,7 +77,7 @@ import type { SizeSystem } from "./sizes";
 import "./styles.css";
 
 type Step = "shape" | "support" | "density" | "print";
-type Feature = "outline" | "arch" | "heel" | "met";
+type Feature = "outline" | "arch" | "heel" | "met" | "base";
 const steps = [
   { id: "shape", label: "Define the shape", detail: "Dimensions & outline" },
   { id: "support", label: "Add your support", detail: "Contours & landmarks" },
@@ -101,6 +102,12 @@ const features = [
     label: "Metatarsal pads",
     caption: "Independent supports, each with its own shape.",
     icon: Footprints,
+  },
+  {
+    id: "base",
+    label: "Base & flex",
+    caption: "Base thickness and a smooth heel or toe lift.",
+    icon: SlidersHorizontal,
   },
 ] as const;
 
@@ -375,7 +382,9 @@ export default function InsoleApp() {
             ? 0.05
             : key === "baseThickness"
               ? 0.1
-              : key.includes("Height") || key === "toeSpring"
+              : key.includes("Height") ||
+                  key === "toeSpring" ||
+                  key === "heelLift"
                 ? 0.5
                 : 1
       }
@@ -825,6 +834,10 @@ export default function InsoleApp() {
                       <dd>{p.baseThickness} mm</dd>
                     </div>
                     <div>
+                      <dt>Heel lift</dt>
+                      <dd>{p.heelLift} mm</dd>
+                    </div>
+                    <div>
                       <dt>Solid volume</dt>
                       <dd>{stats.volumeCm3.toFixed(1)} cm³</dd>
                     </div>
@@ -1110,7 +1123,7 @@ export default function InsoleApp() {
               params={p}
               side={side}
               onChange={change}
-              selected={feature}
+              selected={feature === "base" ? "outline" : feature}
               onSelect={selectFeature}
               densityMode={step === "density" || mode === "density"}
               selectedDensityZoneId={selectedDensityZone?.id}
@@ -1135,8 +1148,8 @@ export default function InsoleApp() {
           <div className="sole-landmarks">
             <div className="sole-control-heading">
               <MousePointer2 size={14} />
-              <h3>Surface features</h3>
-              <span>03</span>
+              <h3>Support & base</h3>
+              <span>04</span>
             </div>
             {features.map((f, i) => (
               <button
@@ -1152,7 +1165,9 @@ export default function InsoleApp() {
                       ? `${p.archHeight} mm lift · inner edge`
                       : f.id === "heel"
                         ? `${p.heelCupHeight} mm rim · heel seat`
-                        : `${p.pads.filter((pad) => pad.enabled).length} active · ${p.pads.length} total`}
+                        : f.id === "base"
+                          ? `${p.baseThickness} mm base · ${p.heelLift} mm heel lift`
+                          : `${p.pads.filter((pad) => pad.enabled).length} active · ${p.pads.length} total`}
                   </small>
                 </span>
                 <ArrowRight size={14} />
@@ -1216,7 +1231,7 @@ export default function InsoleApp() {
                     {i === 0
                       ? "Measure your factory insole. Set its length and widths, then drag the orange outline landmarks. Your measured foot length and shoe limits live under Foot & shoe measurements."
                       : i === 1
-                        ? "Choose arch support, heel cup or metatarsal pads. Add or duplicate pads, rotate them, and adjust their length, width and position. Use Advanced slope & curve to flatten the tops and shape the falloff. Drag landmarks in plan view to position supports."
+                        ? "Choose arch support, heel cup or metatarsal pads. Add or duplicate pads, rotate them, and adjust their length, width and position. Use Advanced slope & curve to flatten the tops and shape the falloff. Base & flex has base thickness, heel lift and toe lift; heel lift raises the whole heel seat. Drag landmarks in plan view to position supports."
                         : i === 2
                           ? "Set a base infill, override supports, and add movable density regions. Export a PrusaSlicer 3MF to carry the geometry and local settings together. Colors show requested infill, not a measured compression simulation."
                           : "Download a full-size paper outline to check fit, then export a PrusaSlicer 3MF to keep your density regions. Choose your printer and material in the slicer. Save a project file to keep an editable copy."}

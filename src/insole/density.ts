@@ -222,6 +222,7 @@ export function getDensityRegions(p: InsoleParams): DensityRegion[] {
   // Modifier portions outside the insole are discarded by PrusaSlicer.
   const top =
     p.baseThickness +
+    p.heelLift +
     p.archHeight +
     p.heelCupHeight +
     p.toeSpring +

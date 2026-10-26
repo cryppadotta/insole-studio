@@ -325,4 +325,33 @@ describe("slicer density settings", () => {
       ),
     );
   });
+
+  it("covers a raised heel with full and support modifiers while keeping the base plane fixed", () => {
+    const params = cloneParams(DEFAULT_PARAMS);
+    params.heelLift = 40;
+    params.archHeight = 0;
+    params.heelCupHeight = 0;
+    params.toeSpring = 0;
+    params.pads.forEach((pad) => (pad.enabled = false));
+    params.density.baseInfill = 22;
+    params.density.heel = { infill: 12, scope: "full" };
+    const y = params.length * 0.14;
+    const top = surfaceHeight(params, 0, y);
+    expect(top).toBeGreaterThan(params.baseThickness + 30);
+    expect(getDensityAt(params, 0, y, top)).toBe(12);
+    expect(getDensityRegions(params)[0].maxZ).toBeGreaterThan(top);
+
+    params.density.heel.scope = "support";
+    expect(getDensityAt(params, 0, y, params.baseThickness)).toBe(22);
+    expect(getDensityAt(params, 0, y, top)).toBe(12);
+    params.density.heel.scope = "base";
+    expect(getDensityAt(params, 0, y, params.baseThickness)).toBe(12);
+    expect(getDensityAt(params, 0, y, top)).toBe(22);
+    expect(getDensityRegions(params)[0].maxZ).toBe(params.baseThickness);
+
+    params.density.heel.scope = "full";
+    const modifiers = buildDensityModifiers(params, "left");
+    expect(modifiers[0].geometry.boundingBox!.max.z).toBeGreaterThan(top);
+    modifiers.forEach((modifier) => modifier.geometry.dispose());
+  });
 });
