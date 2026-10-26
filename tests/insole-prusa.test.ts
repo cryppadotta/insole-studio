@@ -70,6 +70,31 @@ describe("PrusaSlicer density exports", () => {
     expect(config).toContain("Heel &lt;relief&gt; &amp; &quot;soft&quot;");
   });
 
+  it("remains identifiable as a Prusa project without claiming a newer reader than the supported 2.9.0 baseline", () => {
+    // Prusa's project detector scans only the first 1024 bytes for this marker.
+    // When there is no global print config, a future marker makes older GUIs
+    // show "Configuration was not loaded", even for supported model metadata.
+    const application = strFromU8(
+      files["3D/3dmodel.model"].slice(0, 1024),
+    ).match(
+      /<metadata name="Application">PrusaSlicer-(\d+)\.(\d+)\.(\d+)<\/metadata>/,
+    );
+    expect(application).not.toBeNull();
+    const [major, minor, patch] = application!.slice(1).map(Number);
+    expect(major).toBe(2);
+    expect(minor).toBe(9);
+    expect(patch).toBeLessThanOrEqual(0);
+    expect(model).toContain(
+      '<metadata name="Designer">Insole Studio</metadata>',
+    );
+    expect(files["Metadata/Slic3r_PE.config"]).toBeUndefined();
+    expect(
+      readVolumes(config).filter((volume) =>
+        volume.metadata.includes('key="volume_type" value="ParameterModifier"'),
+      ),
+    ).toHaveLength(4);
+  });
+
   it("marks regions as nonprinting parameter modifiers in increasing override priority", () => {
     const volumes = readVolumes(config);
     expect(volumes).toHaveLength(5);

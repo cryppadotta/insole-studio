@@ -1216,7 +1216,7 @@ export default function InsoleApp() {
                         ? "Choose arch support, heel cup or metatarsal pads. Add or duplicate pads, rotate them, and adjust their length, width and position. Use Advanced slope & curve to flatten the tops and shape the falloff. Drag landmarks in plan view to position supports."
                         : i === 2
                           ? "Set a base infill, override supports, and add movable density regions. Export a PrusaSlicer 3MF to carry the geometry and local settings together. Colors show requested infill, not a measured compression simulation."
-                          : "Download a full-size paper outline to check fit, then export a closed STL in millimeters. Use your slicer to set material and infill. Save a project file to keep an editable copy."}
+                          : "Download a full-size paper outline to check fit, then export a PrusaSlicer 3MF to keep your density regions. Choose your printer and material in the slicer. Save a project file to keep an editable copy."}
                   </p>
                 </section>
               </div>
@@ -1224,9 +1224,8 @@ export default function InsoleApp() {
             <p className="sole-guide-note">
               Link the feet for a mirrored pair, or unlink them to customize
               each side. Your design autosaves in this browser with a recovery
-              copy. Cookies remember your studio settings. This editor builds
-              from your measurements; scan alignment and automatic scan fitting
-              remain in the separate FootScan workflow.
+              copy. Measurements and size preferences stay in local storage; a
+              small cookie remembers your editor view.
             </p>
           </div>
         </Modal>
@@ -1328,6 +1327,26 @@ export default function InsoleApp() {
             {exportSide === "pair" &&
               " For a pair, allow both downloads if your browser asks."}
           </p>
+          {exportFormat === "3mf" && (
+            <details className="sole-details">
+              <summary>
+                View density regions in PrusaSlicer
+                <ChevronDown size={14} />
+              </summary>
+              <p>
+                Use Advanced or Expert mode. Expand the insole in the right-hand
+                Object list. Select a modifier name to see its translucent
+                volume, then click its Infill child row to inspect Fill density
+                and Fill pattern. The insole’s own Infill row sets the base.
+              </p>
+              <p>
+                Slice, then move the Preview layer slider inside the base or
+                support to see the infill spacing. If no modifiers are listed,
+                enable a support infill override or add a region in Tune the
+                cushion before exporting.
+              </p>
+            </details>
+          )}
           <button
             className="sole-button sole-primary sole-full"
             disabled={exportBusy || exportIssues.length > 0}

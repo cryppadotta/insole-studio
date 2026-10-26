@@ -49,6 +49,10 @@ interface ExportVolume {
 }
 
 const HEADER = '<?xml version="1.0" encoding="UTF-8"?>';
+// This is the oldest supported reader contract, not the installed slicer version.
+// A newer Application version plus an intentionally absent global print config
+// triggers a misleading "Configuration was not loaded" warning in older 2.9.x GUIs.
+const PRUSA_3MF_COMPATIBILITY_VERSION = "2.9.0";
 const CONTENT_TYPES = `${HEADER}
 <Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">
 <Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>
@@ -154,12 +158,13 @@ export function prusaProject(
       settings.push("</volume>");
     }
 
-    // The Application compatibility marker selects the legacy volume-aware
-    // reader in PrusaSlicer 3 previews. Designer identifies the actual producer.
+    // Keep the compatibility marker at the supported format baseline. It also
+    // selects the legacy volume-aware reader in PrusaSlicer 3 previews.
+    // Designer identifies the actual producer of this design/settings file.
     const model = `${HEADER}
 <model unit="millimeter" xml:lang="en-US" xmlns="http://schemas.microsoft.com/3dmanufacturing/core/2015/02" xmlns:slic3rpe="http://schemas.slic3r.org/3mf/2017/06">
 <metadata name="slic3rpe:Version3mf">1</metadata>
-<metadata name="Application">PrusaSlicer-2.9.4</metadata>
+<metadata name="Application">PrusaSlicer-${PRUSA_3MF_COMPATIBILITY_VERSION}</metadata>
 <metadata name="Designer">Insole Studio</metadata>
 <metadata name="Title">${xml(`${name} · ${side} insole`)}</metadata>
 <metadata name="Description">Insole Studio density design. PrusaSlicer 2.9.x modifier metadata; select your own printer and calibrated filament profile.</metadata>
@@ -247,7 +252,9 @@ PREFERRED: PRUSASLICER 2.9.x 3MF
 1. Use the separate PrusaSlicer 3MF download from Insole Studio and import/open it in PrusaSlicer 2.9.x.
 2. This design file contains per-object/region infill overrides, without a printer or filament preset.
    Keep/select your own printer and calibrated Siraya Tech Flex TPU Air filament profile.
-3. Expand the insole in the Object list. It should contain one model part followed by setting modifiers.
+3. Switch to Expert mode and expand the insole in the right-hand Object list. It should contain
+   one model part followed by setting modifiers. Select a modifier to see its translucent volume
+   on the bed; expand the modifier and select its Infill child row to inspect Fill density and Fill pattern.
    Confirm every region has a modifier icon, its intended Fill density, and its position.
    If regions appear as printable parts, stop and use the manual workflow below.
 4. Slice, then inspect Preview at multiple layer heights to confirm the requested infill regions.
@@ -277,7 +284,7 @@ WHAT IS AND IS NOT CONTROLLED
   Calibrate the active foaming material on your printer before comparing physical softness.
 
 Official modifier workflow: https://help.prusa3d.com/article/modifiers_1767
-Format source: https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.4/src/libslic3r/Format/3mf.cpp
+Format baseline: https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.0/src/libslic3r/Format/3mf.cpp
 `;
 }
 
