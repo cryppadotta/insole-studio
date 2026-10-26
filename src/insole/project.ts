@@ -16,6 +16,7 @@ import {
   type DensityScope,
   type DensityZone,
 } from "./density";
+import { isMaterialGrade, type MaterialGrade } from "./materials";
 
 export type Foot = "left" | "right";
 export type Pair = Record<Foot, InsoleParams>;
@@ -28,6 +29,7 @@ export interface InsoleProject {
   footLength: number;
   shoeLength: number;
   shoeWidth: number;
+  materialGrade?: MaterialGrade;
 }
 // Separate the public app from other projects sharing the same browser origin.
 // Existing project files remain compatible through the unchanged JSON format.
@@ -46,6 +48,7 @@ export interface StudioPreferences {
   selectedDensityZoneId?: string;
   sizeSystem?: string;
   sizeValue?: string;
+  materialGrade?: MaterialGrade;
 }
 
 export const newProject = (): InsoleProject => ({
@@ -384,6 +387,11 @@ export function parseInsoleProject(text: string): InsoleProject {
     throw new Error(
       "A linked pair must use matching left and right parameters.",
     );
+  if (
+    value.materialGrade !== undefined &&
+    !isMaterialGrade(value.materialGrade)
+  )
+    throw new Error("Choose TPU Air 85A or 95A for the material grade.");
   return {
     format: "fieldwork-insole",
     version: 3,
@@ -393,6 +401,9 @@ export function parseInsoleProject(text: string): InsoleProject {
     footLength: value.footLength as number,
     shoeLength: value.shoeLength as number,
     shoeWidth: value.shoeWidth as number,
+    ...(isMaterialGrade(value.materialGrade)
+      ? { materialGrade: value.materialGrade }
+      : {}),
   };
 }
 
@@ -474,6 +485,8 @@ function cleanPreferences(value: unknown): StudioPreferences {
     preferences.exportPlacement = value.exportPlacement;
   if (validNumber(value.bedClearance, [0, 10]))
     preferences.bedClearance = value.bedClearance as number;
+  if (isMaterialGrade(value.materialGrade))
+    preferences.materialGrade = value.materialGrade;
   for (const key of [
     "selectedPadId",
     "selectedDensityZoneId",

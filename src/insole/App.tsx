@@ -41,6 +41,8 @@ import Measure from "./Measure";
 import SupportControls from "./SupportControls";
 import DensityControls from "./DensityControls";
 import BedPlacementPreview from "./BedPlacementPreview";
+import MaterialSettings from "./MaterialSettings";
+import { DEFAULT_MATERIAL_GRADE, type MaterialGrade } from "./materials";
 import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
 import { getDensityRegions } from "./density";
 import { prusaProject, modifierBundle } from "./prusa";
@@ -186,6 +188,11 @@ function Modal({
 export default function InsoleApp() {
   const [project, setProject] = useState(loadInsoleProject);
   const [preferences] = useState(readStudioPreferences);
+  const [materialGrade, setMaterialGrade] = useState<MaterialGrade>(
+    preferences.materialGrade ??
+      project.materialGrade ??
+      DEFAULT_MATERIAL_GRADE,
+  );
   const [history, setHistory] = useState(() =>
     createHistory(project.feet, project.linked),
   );
@@ -246,8 +253,13 @@ export default function InsoleApp() {
     return result;
   }, [statsKey, side]);
   const currentProject = useMemo(
-    () => ({ ...project, feet: history.present, linked: history.linked }),
-    [project, history.present, history.linked],
+    () => ({
+      ...project,
+      feet: history.present,
+      linked: history.linked,
+      materialGrade,
+    }),
+    [project, history.present, history.linked, materialGrade],
   );
   useEffect(() => {
     const old = document.title;
@@ -302,6 +314,7 @@ export default function InsoleApp() {
       selectedDensityZoneId: selectedDensityZone?.id ?? "",
       exportPlacement,
       bedClearance,
+      materialGrade,
     });
   }, [
     side,
@@ -313,6 +326,7 @@ export default function InsoleApp() {
     selectedDensityZone?.id,
     exportPlacement,
     bedClearance,
+    materialGrade,
   ]);
   useEffect(() => {
     if (!toast) return;
@@ -470,6 +484,7 @@ export default function InsoleApp() {
         throw new Error("Choose a project file smaller than 1 MB.");
       const next = parseInsoleProject(await file.text());
       setProject(next);
+      if (next.materialGrade) setMaterialGrade(next.materialGrade);
       lastEdit.current = 0;
       setHistory(createHistory(next.feet, next.linked));
       setToast(`Opened “${next.name}”.`);
@@ -511,8 +526,11 @@ export default function InsoleApp() {
                 ? prusaProject(history.present[foot], foot, project.name, {
                     placement: exportPlacement,
                     clearance: bedClearance,
+                    materialGrade,
                   })
-                : modifierBundle(history.present[foot], foot, project.name);
+                : modifierBundle(history.present[foot], foot, project.name, {
+                    materialGrade,
+                  });
             downloadFile(
               new Uint8Array(bytes).buffer,
               `${name}-${foot}-${exportFormat === "3mf" ? "density.3mf" : "modifiers.zip"}`,
@@ -892,6 +910,11 @@ export default function InsoleApp() {
                     </div>
                   </dl>
                 </div>
+                <MaterialSettings
+                  id="insole-print-material"
+                  grade={materialGrade}
+                  onChange={setMaterialGrade}
+                />
                 <button
                   className="sole-button sole-primary sole-full"
                   onClick={() => setModal("export")}
@@ -1359,6 +1382,11 @@ export default function InsoleApp() {
               </span>
             </label>
           </div>
+          <MaterialSettings
+            id="insole-export-material"
+            grade={materialGrade}
+            onChange={setMaterialGrade}
+          />
           {exportFormat === "3mf" && (
             <section
               className="sole-bed-placement"

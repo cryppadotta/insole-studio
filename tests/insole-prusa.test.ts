@@ -74,6 +74,44 @@ function boundsXY(points: number[][]) {
 }
 
 describe("PrusaSlicer density exports", () => {
+  it.each(["85a", "95a"] as const)(
+    "keeps %s material notes with each export without applying a machine or filament preset",
+    (materialGrade) => {
+      const p = cloneParams(DEFAULT_PARAMS);
+      const project = unzipSync(
+        prusaProject(p, "right", "Material test", { materialGrade }),
+      );
+      const bundle = unzipSync(
+        modifierBundle(p, "right", "Material test", { materialGrade }),
+      );
+      for (const [files, settingsPath, readmePath] of [
+        [
+          project,
+          "Metadata/InsoleStudio-density.json",
+          "Metadata/InsoleStudio-README.txt",
+        ],
+        [bundle, "settings.json", "README.txt"],
+      ] as const) {
+        const manifest = JSON.parse(strFromU8(files[settingsPath]));
+        expect(manifest.material.grade).toBe(materialGrade);
+        expect(manifest.material.name).toContain(materialGrade.toUpperCase());
+        expect(manifest.material.profileDownload).toBe(
+          `siraya-tpu-air-${materialGrade}-prusa292-starting-profiles.ini`,
+        );
+        expect(manifest.material.appliedToSlicer).toBe(false);
+        expect(manifest.containsPrinterOrFilamentProfile).toBe(false);
+        expect(files["Metadata/Slic3r_PE.config"]).toBeUndefined();
+        const notes = strFromU8(files[readmePath]);
+        expect(notes).toContain(
+          `Siraya Flex TPU Air ${materialGrade.toUpperCase()}`,
+        );
+        expect(notes).toContain(
+          materialGrade === "85a" ? "multiplier 0.675" : "multiplier 0.65",
+        );
+        expect(notes).toContain("not an applied filament preset");
+      }
+    },
+  );
   let files: Record<string, Uint8Array>;
   let model: string;
   let config: string;

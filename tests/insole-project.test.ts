@@ -51,6 +51,24 @@ function memoryStorage() {
 afterEach(() => vi.unstubAllGlobals());
 
 describe("insole project files", () => {
+  it("round-trips either material grade and leaves older material-free designs unchanged", () => {
+    vi.stubGlobal("localStorage", memoryStorage());
+    const original = newProject();
+    expect(parseInsoleProject(JSON.stringify(original))).not.toHaveProperty(
+      "materialGrade",
+    );
+    for (const materialGrade of ["85a", "95a"] as const) {
+      const project = { ...original, materialGrade };
+      expect(parseInsoleProject(JSON.stringify(project))).toEqual(project);
+      saveInsoleProject(project);
+      expect(loadInsoleProject().materialGrade).toBe(materialGrade);
+    }
+    for (const materialGrade of ["85A", "regular-85a", null, 85, {}]) {
+      expect(() =>
+        parseInsoleProject(JSON.stringify({ ...original, materialGrade })),
+      ).toThrow(/material grade/);
+    }
+  });
   it("round-trips editable v3 designs and keeps feet and pad objects independent", () => {
     const linked = newProject();
     expect(linked.version).toBe(3);
@@ -592,6 +610,25 @@ describe("density project persistence", () => {
 });
 
 describe("private studio preferences", () => {
+  it("remembers a validated Air grade locally without including it in the UI cookie", () => {
+    const storage = memoryStorage();
+    const mockDocument = { cookie: "" };
+    vi.stubGlobal("localStorage", storage);
+    vi.stubGlobal("document", mockDocument);
+    saveStudioPreferences({ materialGrade: "85a", step: "print" });
+    expect(readStudioPreferences()).toEqual({
+      materialGrade: "85a",
+      step: "print",
+    });
+    expect(mockDocument.cookie).not.toContain("materialGrade");
+    for (const materialGrade of ["85A", "regular-85a", null, 85]) {
+      storage.entries.set(
+        PREFERENCES_STORAGE_KEY,
+        JSON.stringify({ materialGrade }),
+      );
+      expect(readStudioPreferences()).toEqual({});
+    }
+  });
   it("remembers Base & flex as a support feature without placing heel lift in UI storage or cookies", () => {
     const storage = memoryStorage();
     const mockDocument = { cookie: "" };

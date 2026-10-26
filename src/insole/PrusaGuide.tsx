@@ -12,16 +12,20 @@ import {
   SlidersHorizontal,
   Thermometer,
 } from "lucide-react";
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
+import {
+  DEFAULT_MATERIAL_GRADE,
+  isMaterialGrade,
+  TPU_AIR_MATERIALS,
+  type MaterialGrade,
+} from "./materials";
+import { readStudioPreferences, saveStudioPreferences } from "./project";
 import "./prusa-guide.css";
 
 const sources = {
   modifiers: "https://help.prusa3d.com/article/modifiers_1767",
   shells: "https://help.prusa3d.com/article/layers-and-perimeters_1748",
   flexible: "https://help.prusa3d.com/article/flexible-materials_2057",
-  material: "https://siraya.tech/products/flex-tpu-air-95a-filament",
-  foaming: "https://siraya.tech/blogs/news/foaming-tpu-filament-guide",
-  retailer: "https://www.amazon.com/dp/B0H7VQ2NKQ",
 };
 const downloadBase = `${import.meta.env.BASE_URL}downloads/`;
 
@@ -263,6 +267,21 @@ function DensityDiagram() {
 }
 
 export default function PrusaGuide() {
+  const [materialGrade, setMaterialGrade] = useState<MaterialGrade>(() => {
+    const saved = readStudioPreferences().materialGrade;
+    return isMaterialGrade(saved) ? saved : DEFAULT_MATERIAL_GRADE;
+  });
+  const material = TPU_AIR_MATERIALS[materialGrade];
+
+  function selectMaterial(value: string) {
+    if (!isMaterialGrade(value)) return;
+    setMaterialGrade(value);
+    saveStudioPreferences({
+      ...readStudioPreferences(),
+      materialGrade: value,
+    });
+  }
+
   return (
     <div className="insole-app prusa-guide">
       <header className="sole-header">
@@ -532,11 +551,29 @@ export default function PrusaGuide() {
               <br /> to tune the feel.
             </h2>
             <p>
-              Siraya Tech Flex TPU Air 95A is an active foaming filament. Treat
-              material expansion and internal structure as separate controls.
+              Choose the grade printed on your spool. Material expansion and
+              internal structure are separate controls.
             </p>
           </div>
           <div className="prusa-section-body">
+            <div className="prusa-material-selector">
+              <div>
+                <label htmlFor="prusa-material-grade">Material grade</label>
+                <select
+                  id="prusa-material-grade"
+                  value={materialGrade}
+                  onChange={(event) => selectMaterial(event.target.value)}
+                  aria-describedby="prusa-material-grade-help"
+                >
+                  <option value="85a">Siraya Flex TPU Air 85A</option>
+                  <option value="95a">Siraya Flex TPU Air 95A</option>
+                </select>
+              </div>
+              <p id="prusa-material-grade-help">
+                Saved with your studio preferences. Downloads below follow this
+                choice. Check the exact product and grade on your spool.
+              </p>
+            </div>
             <div className="prusa-two-controls">
               <article>
                 <span className="prusa-control-icon">
@@ -568,11 +605,19 @@ export default function PrusaGuide() {
               </article>
             </div>
             <p>
-              The <b>95A-specific</b> manufacturer guide gives different
-              starting flow ranges for each temperature: 85–90% at 230–240°C,
-              60–70% at 250°C, and 50–55% at 260–270°C. These are calibration
-              references. A higher temperature does not mean the same extrusion
-              multiplier will still produce the right dimensions.
+              These profiles are for <b>Siraya Flex TPU Air</b>, an active
+              foaming material. They are not generic 85A or 95A TPU settings:
+              ordinary TPU may need much more flow. Air 85A starts softer than
+              Air 95A, but expansion, shells and infill all affect the finished
+              part’s feel.
+            </p>
+            <p>
+              Siraya’s guide gives separate flow ranges for each grade and
+              temperature. At 240°C, both downloadable starters use 87.5% flow.
+              At 250°C, the <b>{material.label}</b> starter uses{" "}
+              <b>{material.foamFlowPercent}%</b>. These are midpoints for
+              calibration, not guaranteed final settings. Tune temperature and
+              flow together to keep the printed dimensions accurate.
             </p>
             <p>
               Dry the filament as the manufacturer directs, feed it with low
@@ -587,9 +632,15 @@ export default function PrusaGuide() {
               community starting points, not manufacturer-certified presets or a
               validated orthotic prescription.
             </p>
+            <p className="prusa-fine-print">
+              Changing material requires selecting the matching filament preset
+              and slicing again. It does not update an existing G-code file or a
+              print already in progress. Changing only temperature or flow
+              mid-print is not a substitute for reslicing.
+            </p>
             <div className="prusa-material-links">
-              <SourceLink href={sources.foaming}>
-                Siraya’s 95A foaming guide
+              <SourceLink href={material.guideUrl}>
+                Siraya’s 85A & 95A foaming guide
               </SourceLink>
               <SourceLink href={sources.flexible}>
                 Prusa’s flexible-material guide
@@ -598,18 +649,15 @@ export default function PrusaGuide() {
             <article className="prusa-material-card">
               <div>
                 <span className="prusa-eyebrow">MATERIAL REFERENCE</span>
-                <h3>Siraya Tech Flex TPU Air 95A</h3>
+                <h3>{material.label}</h3>
                 <p>
-                  Active foaming TPU · 1.75 mm · confirm the 95A version on the
-                  spool
+                  Active foaming TPU · 1.75 mm · confirm the{" "}
+                  {material.grade.toUpperCase()} version on the spool
                 </p>
               </div>
               <div>
-                <SourceLink href={sources.material}>
+                <SourceLink href={material.productUrl}>
                   Manufacturer & material details
-                </SourceLink>
-                <SourceLink href={sources.retailer}>
-                  Amazon retailer listing
                 </SourceLink>
               </div>
             </article>
@@ -628,8 +676,8 @@ export default function PrusaGuide() {
               <br /> Then print an insole.
             </h2>
             <p>
-              Two filament presets and one print preset, packaged as a
-              PrusaSlicer configuration bundle.
+              Two filament presets for your selected grade and one print preset,
+              packaged as a PrusaSlicer configuration bundle.
             </p>
             <span className="prusa-profile-badge">
               CALIBRATION STARTERS / NOT CERTIFIED
@@ -640,28 +688,37 @@ export default function PrusaGuide() {
               <div>
                 <ArrowDownToLine size={24} />
                 <div>
-                  <h3>Siraya TPU Air 95A starting profiles</h3>
+                  <h3>{material.label} starting profiles</h3>
                   <p>PrusaSlicer 2.9.2 · .ini configuration bundle</p>
                 </div>
               </div>
               <a
                 className="prusa-download-button"
-                href={`${downloadBase}siraya-tpu-air-95a-prusa292-starting-profiles.ini`}
+                href={`${downloadBase}${material.profileFilename}`}
                 download
               >
                 Download profiles <ArrowDownToLine size={15} />
               </a>
               <a
                 className="prusa-readme"
-                href={`${downloadBase}siraya-tpu-air-95a-README.txt`}
+                href={`${downloadBase}${material.readmeFilename}`}
                 download
               >
                 Read the settings & calibration notes <ArrowRight size={13} />
               </a>
+              <div className="prusa-download-grade">
+                <span>Selected: TPU Air {material.grade.toUpperCase()}</span>
+                <ChapterLink id="prusa-material">
+                  Change grade <ArrowRight size={12} />
+                </ChapterLink>
+              </div>
             </div>
             <div className="prusa-table-wrap">
               <table>
-                <caption>Filament presets — initial values to test</caption>
+                <caption>
+                  TPU Air {material.grade.toUpperCase()} filament presets —
+                  initial values to test
+                </caption>
                 <thead>
                   <tr>
                     <th scope="col">Preset</th>
@@ -680,7 +737,9 @@ export default function PrusaGuide() {
                   <tr>
                     <th scope="row">250C foam START</th>
                     <td>250°C</td>
-                    <td>0.65 / 65%</td>
+                    <td>
+                      {material.foamMultiplier} / {material.foamFlowPercent}%
+                    </td>
                     <td>40°C</td>
                   </tr>
                 </tbody>
@@ -699,7 +758,7 @@ export default function PrusaGuide() {
             </p>
             <div className="prusa-print-spec">
               <span className="prusa-eyebrow">
-                PRINT PRESET / MK4 INPUT SHAPER / 0.4 MM NOZZLE
+                PRINT PRESET / MK4 INPUT SHAPER & MK4S / 0.4 MM NOZZLE
               </span>
               <h3>0.20mm MK4 0.4 START</h3>
               <p>
@@ -712,15 +771,15 @@ export default function PrusaGuide() {
               <p>
                 <b>Keep your own printer preset and start/end G-code.</b> This
                 bundle contains no printer profile. Its print preset is intended
-                for a stock, single-extruder MK4 Input Shaper profile with a 0.4
-                mm nozzle and direct-drive extrusion. Other printers, nozzles or
-                extruders need their own settings.
+                for stock, single-extruder MK4 Input Shaper or MK4S profiles
+                with a 0.4 mm nozzle and direct-drive extrusion. Other printers,
+                nozzles or extruders need their own settings.
               </p>
               <p>
-                Choosing an MK4S bed for the design export does not change this
-                bundle’s MK4 Input Shaper compatibility. Keep an MK4S printer’s
-                own calibrated print and filament settings when using that
-                machine.
+                Choose the printer and nozzle variant that matches the actual
+                machine, including standard or high-flow nozzle. Choosing an
+                MK4S bed in the design editor only changes model placement; it
+                does not select or configure a printer in PrusaSlicer.
               </p>
             </div>
             <ol className="prusa-steps prusa-import-profiles">
@@ -738,7 +797,8 @@ export default function PrusaGuide() {
                   Keep your actual printer selected. Choose{" "}
                   <b>Insole Studio - TPU Air - 0.20mm MK4 0.4 START</b> under
                   Print settings, and either the <b>240C firm START</b> or{" "}
-                  <b>250C foam START</b> Siraya preset under Filament.
+                  <b>250C foam START</b> Siraya{" "}
+                  <b>{material.grade.toUpperCase()}</b> preset under Filament.
                 </p>
               </li>
               <li>

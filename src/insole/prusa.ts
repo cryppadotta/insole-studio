@@ -8,6 +8,7 @@ import {
   type InsoleParams,
 } from "./model";
 import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
+import { TPU_AIR_MATERIALS, type MaterialGrade } from "./materials";
 
 type Foot = "left" | "right";
 
@@ -16,6 +17,8 @@ export interface PrusaProjectOptions {
   placement?: PlacementMode;
   /** Requested XY model-to-bed margin, from 0 to 10 mm. Default: 3 mm. */
   clearance?: number;
+  /** Material reminder only. Machine and filament presets stay in the slicer. */
+  materialGrade?: MaterialGrade;
 }
 
 type ProjectPlacement =
@@ -225,10 +228,14 @@ ${settings.join("\n")}
         "3D/3dmodel.model": strToU8(model),
         "Metadata/Slic3r_PE_model.config": strToU8(config),
         "Metadata/InsoleStudio-density.json": strToU8(
-          JSON.stringify(densityManifest(p, side, volumes, placement), null, 2),
+          JSON.stringify(
+            densityManifest(p, side, volumes, placement, options.materialGrade),
+            null,
+            2,
+          ),
         ),
         "Metadata/InsoleStudio-README.txt": strToU8(
-          instructions(p, side, volumes, placement),
+          instructions(p, side, volumes, placement, options.materialGrade),
         ),
       },
       { level: 6 },
@@ -256,6 +263,7 @@ function densityManifest(
   side: Foot,
   volumes: ExportVolume[],
   placement?: ProjectPlacement,
+  materialGrade?: MaterialGrade,
 ) {
   return {
     format: "insole-studio-density-v1",
@@ -269,6 +277,17 @@ function densityManifest(
     precedence:
       "Later modifiers override earlier ones in overlaps. Custom zones follow arch, heel, and pads.",
     containsPrinterOrFilamentProfile: false,
+    ...(materialGrade
+      ? {
+          material: {
+            grade: materialGrade,
+            name: TPU_AIR_MATERIALS[materialGrade].label,
+            profileDownload: TPU_AIR_MATERIALS[materialGrade].profileFilename,
+            source: TPU_AIR_MATERIALS[materialGrade].guideUrl,
+            appliedToSlicer: false,
+          },
+        }
+      : {}),
     ...(placement ? { placement } : {}),
     modifiers: volumes.slice(1).map((volume, index) => {
       const { geometry: _geometry, ...region } = volume.modifier!;
@@ -289,6 +308,7 @@ function instructions(
   side: Foot,
   volumes: ExportVolume[],
   placement?: ProjectPlacement,
+  materialGrade?: MaterialGrade,
 ) {
   const manifest = densityManifest(p, side, volumes);
   const placementInstructions = placement
@@ -301,6 +321,7 @@ function instructions(
 The insole is the one printable solid. All region meshes are NONPRINTING setting modifiers.
 Infill percentage is a slicer setting, not a measurement of material density, Shore hardness, or compression.
 ${placementInstructions}
+${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\nThis is a material reminder, not an applied filament preset. Import the matching\n${TPU_AIR_MATERIALS[materialGrade].profileFilename} configuration bundle from Insole Studio's Prusa guide.\nSelect the correct grade and calibrated temperature/flow pair in PrusaSlicer before slicing.\nA 250 C calibration start uses extrusion multiplier ${TPU_AIR_MATERIALS[materialGrade].foamMultiplier};\nleave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
 
 PREFERRED: PRUSASLICER 2.9.x 3MF
 1. Use the separate PrusaSlicer 3MF download from Insole Studio and import/open it in PrusaSlicer 2.9.x.
@@ -347,6 +368,7 @@ export function modifierBundle(
   params: InsoleParams,
   side: Foot,
   name = "Insole Studio",
+  options: Pick<PrusaProjectOptions, "materialGrade"> = {},
 ): Uint8Array {
   const p = clampParams(params);
   const volumes = exportVolumes(p, side, name);
@@ -354,9 +376,15 @@ export function modifierBundle(
     const files: Record<string, Uint8Array> = {
       [`insole-${side}-mm.stl`]: new Uint8Array(binarySTL(volumes[0].geometry)),
       "settings.json": strToU8(
-        JSON.stringify(densityManifest(p, side, volumes), null, 2),
+        JSON.stringify(
+          densityManifest(p, side, volumes, undefined, options.materialGrade),
+          null,
+          2,
+        ),
       ),
-      "README.txt": strToU8(instructions(p, side, volumes)),
+      "README.txt": strToU8(
+        instructions(p, side, volumes, undefined, options.materialGrade),
+      ),
     };
     volumes.slice(1).forEach((volume, index) => {
       files[modifierFilename(volume, index + 1)] = new Uint8Array(

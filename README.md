@@ -13,6 +13,8 @@ A browser-based parametric insole editor built with React, Vite and Three.js. De
 
 All modeling and exports run in the browser. GitHub Pages serves the static application; no application server or account is required. Infill colors show requested settings rather than predicted compression. See the [density and PrusaSlicer guide](docs/insole-density.md) for modifier priority, filament foaming and slicer shell considerations.
 
+The print tab and Prusa guide offer separate Siraya Flex TPU Air 85A and 95A calibration downloads for MK4 Input Shaper / MK4S 0.4 mm configurations. The material choice saves with the editable project and accompanies 3MF/ZIP exports as a reminder. Select the matching calibrated filament preset in PrusaSlicer; these design exports carry geometry and local infill overrides, without replacing machine settings. The Air presets are for active foaming material, not ordinary TPU of the same hardness.
+
 ## Run locally
 
 Use Node.js 24 and pnpm 10.23.0.

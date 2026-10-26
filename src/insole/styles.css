@@ -1081,6 +1081,59 @@
   border-radius: 5px;
   margin: 25px 0 16px;
 }
+.sole-material-settings {
+  background: #f1f4eb;
+  border: 1px solid #dce3d6;
+  border-radius: 5px;
+  padding: 15px;
+  margin: 0 0 20px;
+}
+.sole-material-settings > label {
+  display: block;
+  font-weight: 600;
+  margin-bottom: 9px;
+}
+.sole-material-settings > select {
+  width: 100%;
+  min-height: 39px;
+  border: 1px solid #ced8c6;
+  border-radius: 3px;
+  background: var(--sole-paper);
+  color: var(--sole-ink);
+  font: inherit;
+  padding: 7px;
+}
+.sole-material-settings p {
+  font-size: 11px;
+  line-height: 1.6;
+  margin: 10px 0;
+  color: #6e7b6b;
+}
+.sole-material-settings a {
+  color: var(--sole-green);
+}
+.sole-material-start {
+  display: flex;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 13px 0;
+  font: 10px var(--mono);
+}
+.sole-material-start strong {
+  color: var(--sole-green);
+}
+.sole-material-start small {
+  flex-basis: 100%;
+  font:
+    10px/1.5 "IBM Plex Sans",
+    sans-serif;
+  color: #6e7b6b;
+}
+.sole-material-settings .sole-material-caution {
+  margin-bottom: 0;
+  color: #946840;
+}
 .sole-print-summary > span {
   display: block;
   font: 8px var(--mono);
@@ -1328,7 +1381,9 @@
 }
 .sole-bed-preview strong {
   color: #506d42;
-  font: 500 12px "IBM Plex Sans", sans-serif;
+  font:
+    500 12px "IBM Plex Sans",
+    sans-serif;
 }
 .sole-bed-preview small {
   font-size: 8px;

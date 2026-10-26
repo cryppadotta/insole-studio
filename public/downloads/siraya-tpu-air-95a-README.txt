@@ -1,6 +1,6 @@
 INSOLE STUDIO - SIRAYA TECH FLEX TPU AIR 95A
-Calibration starting profiles, version 1
-PrusaSlicer 2.9.2 | Original Prusa MK4 Input Shaper | stock 0.4 mm nozzle
+Calibration starting profiles, version 2
+PrusaSlicer 2.9.2 | Original Prusa MK4 Input Shaper or MK4S | 0.4 mm nozzle
 
 WHAT IS IN THE INI DOWNLOAD
 
@@ -17,18 +17,23 @@ One new Print Settings preset:
 
 These are Insole Studio starting points for calibration. They are not official
 Siraya or Prusa profiles, manufacturer certified settings, or physically tested
-compression predictions. Do not substitute the nonfoaming Flex TPU 95A or Flex
-TPU Air 85A for this material without making and calibrating a separate preset.
+compression predictions. Use only for Flex TPU Air 95A active-foaming filament.
+For Flex TPU Air 85A, use the separate 85A download and calibrate again.
+Do not use these Air profiles for nonfoaming Flex TPU or Roamr TPU Air HR.
 
 IMPORT AND SELECT
 
-1. Select your existing official Original Prusa MK4 Input Shaper 0.4 nozzle
-   printer preset. This bundle adds no printer preset and changes no machine
+1. Select your existing official Original Prusa MK4 Input Shaper or MK4S
+   0.4 nozzle printer preset that matches the actual machine and nozzle.
+   This bundle adds no printer preset and changes no machine
    limits, start/end G-code, network settings, or existing named presets.
+   Keep the official standard/high-flow nozzle choice and machine checks.
 2. In PrusaSlicer, choose File > Import > Import Config Bundle.
 3. Open the downloaded INI. Three presets are added under the names above.
 4. Select the Insole Studio Print Settings preset, then select ONE of the two
    Filament presets. Keep your correct official printer selected.
+   The print preset is shared with the 85A bundle; importing both bundles
+   uses that same shared print preset and adds separate grade-named filaments.
 5. Print a small calibration sample before a full insole. Start at 240 C for the
    firmer mode or compare the separate 250 C sample for more foaming. Calibrate
    extrusion multiplier at each temperature; inspect clean, bonded walls with
@@ -78,7 +83,7 @@ Keep this hygroscopic filament dry and use the manufacturer's drying/storage
 guidance for your equipment. Protect PEI with an appropriate release layer and
 let the sheet cool before removal. Follow Prusa's MK4/Nextruder idler-tension
 instructions if feeding is unreliable; that mechanical adjustment is outside
-a slicer preset. These presets intentionally target only the MK4 Input Shaper,
+a slicer preset. These presets target only the MK4 Input Shaper or MK4S,
 single extruder, 0.4 mm nozzle. Make a separately calibrated copy for any other
 printer or nozzle. Nothing in this download sends a print to a printer.
 
@@ -86,6 +91,8 @@ SOURCES AND MATERIAL LINKS
 
 Siraya's 95A-specific temperature/flow guide:
 https://siraya.tech/blogs/news/foaming-tpu-filament-guide
+Siraya TPU Air manual (verify the grade-specific flow table above):
+https://siraya.tech/pages/siraya-tech-tpu-air-user-manual
 Material (Flex TPU Air 95A, active foaming):
 https://siraya.tech/products/flex-tpu-air-95a-filament
 Siraya's own print-setting downloads (verify material and printer match):
