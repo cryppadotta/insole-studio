@@ -616,24 +616,24 @@ export default function InsoleApp() {
             <h2>
               {step === "shape" ? (
                 <>
-                  A shape that’s
+                  A shape that’s{" "}
                   <br />
                   all yours.
                 </>
               ) : step === "support" ? (
                 <>
-                  A little support.
+                  A little support.{" "}
                   <br />A better fit.
                 </>
               ) : step === "density" ? (
                 <>
-                  Tune the
+                  Tune the{" "}
                   <br />
                   feel.
                 </>
               ) : (
                 <>
-                  From pixels
+                  From pixels{" "}
                   <br />
                   to a first fit.
                 </>
