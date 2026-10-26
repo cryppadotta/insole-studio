@@ -507,6 +507,9 @@ export default function InsoleApp() {
           </strong>
         </a>
 
+        <nav aria-label="Main navigation">
+          <a href="#/prusa">Prusa guide</a>
+        </nav>
         <div className="sole-header-tools">
           <span className="sole-local">
             <i /> LOCAL WORKSPACE
