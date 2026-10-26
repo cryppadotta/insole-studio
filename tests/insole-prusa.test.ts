@@ -1,8 +1,13 @@
 import { strFromU8, unzipSync } from "fflate";
 import { beforeAll, describe, expect, it } from "vitest";
 import { defaultDensity, makeDensityZone } from "../src/insole/density";
-import { cloneParams, DEFAULT_PARAMS } from "../src/insole/model";
+import {
+  buildInsoleGeometry,
+  cloneParams,
+  DEFAULT_PARAMS,
+} from "../src/insole/model";
 import { modifierBundle, prusaProject } from "../src/insole/prusa";
+import { MK4S_BED, planBedPlacement } from "../src/insole/placement";
 
 function sample() {
   const p = cloneParams(DEFAULT_PARAMS);
@@ -34,6 +39,38 @@ function readVolumes(config: string) {
     last: Number(match[2]),
     metadata: match[3],
   }));
+}
+
+function readVertices(model: string) {
+  return [
+    ...model.matchAll(/<vertex x="([^"]+)" y="([^"]+)" z="([^"]+)"\/>/g),
+  ].map((match) => match.slice(1).map(Number));
+}
+
+function buildTransform(model: string) {
+  const value = model.match(/<item [^>]*transform="([^"]+)"/);
+  expect(value).not.toBeNull();
+  return value![1].split(/\s+/).map(Number);
+}
+
+function transformPoint(matrix: number[], [x, y, z]: number[]) {
+  return [
+    matrix[0] * x + matrix[3] * y + matrix[6] * z + matrix[9],
+    matrix[1] * x + matrix[4] * y + matrix[7] * z + matrix[10],
+    matrix[2] * x + matrix[5] * y + matrix[8] * z + matrix[11],
+  ];
+}
+
+function boundsXY(points: number[][]) {
+  return points.reduce(
+    (bounds, [x, y]) => ({
+      minX: Math.min(bounds.minX, x),
+      maxX: Math.max(bounds.maxX, x),
+      minY: Math.min(bounds.minY, y),
+      maxY: Math.max(bounds.maxY, y),
+    }),
+    { minX: Infinity, maxX: -Infinity, minY: Infinity, maxY: -Infinity },
+  );
 }
 
 describe("PrusaSlicer density exports", () => {
@@ -168,6 +205,176 @@ describe("PrusaSlicer density exports", () => {
     ).toHaveLength(1);
   });
 
+  it.each(["left", "right"] as const)(
+    "rigidly rotates and centers the %s solid with its modifiers on the MK4/S bed at 100% scale",
+    (side) => {
+      const p = sample();
+      const files = unzipSync(prusaProject(p, side));
+      const model = strFromU8(files["3D/3dmodel.model"]);
+      const matrix = buildTransform(model);
+      expect(matrix).toHaveLength(12);
+      expect(matrix.every(Number.isFinite)).toBe(true);
+      expect(Math.hypot(...matrix.slice(0, 3))).toBeCloseTo(1, 10);
+      expect(Math.hypot(...matrix.slice(3, 6))).toBeCloseTo(1, 10);
+      expect(matrix[0] * matrix[3] + matrix[1] * matrix[4]).toBeCloseTo(0, 10);
+      expect(matrix[0] * matrix[4] - matrix[1] * matrix[3]).toBeCloseTo(1, 10);
+      expect([
+        matrix[2],
+        matrix[5],
+        matrix[6],
+        matrix[7],
+        matrix[8],
+        matrix[11],
+      ]).toEqual([0, 0, 0, 0, 1, 0]);
+      expect(model.match(/transform=/g)).toHaveLength(1);
+
+      const geometry = buildInsoleGeometry(p, side, 160);
+      try {
+        const expected = planBedPlacement(geometry);
+        expect(matrix).toEqual(expected.transform3mf.split(/\s+/).map(Number));
+        const count = geometry.getAttribute("position").count;
+        const vertices = readVertices(model);
+        const solid = vertices.slice(0, count);
+        // The original mesh coordinates are preserved. Placement belongs only
+        // to the common parent instance, so no modifier can rotate separately.
+        const original = strFromU8(
+          unzipSync(
+            prusaProject(p, side, "Insole Studio", { placement: "original" }),
+          )["3D/3dmodel.model"],
+        );
+        expect(vertices).toEqual(readVertices(original));
+        const position = geometry.getAttribute("position");
+        expect(solid).toEqual(
+          Array.from({ length: count }, (_, i) => [
+            position.getX(i) || 0,
+            position.getY(i) || 0,
+            position.getZ(i) || 0,
+          ]),
+        );
+        const bounds = boundsXY(
+          solid.map((point) => transformPoint(matrix, point)),
+        );
+        expect(bounds.minX).toBeGreaterThanOrEqual(
+          MK4S_BED.requiredClearance - 1e-7,
+        );
+        expect(bounds.maxX).toBeLessThanOrEqual(
+          MK4S_BED.width - MK4S_BED.requiredClearance + 1e-7,
+        );
+        expect(bounds.minY).toBeGreaterThanOrEqual(
+          MK4S_BED.requiredClearance - 1e-7,
+        );
+        expect(bounds.maxY).toBeLessThanOrEqual(
+          MK4S_BED.depth - MK4S_BED.requiredClearance + 1e-7,
+        );
+        expect(bounds.minX + bounds.maxX).toBeCloseTo(MK4S_BED.width, 7);
+        expect(bounds.minY + bounds.maxY).toBeCloseTo(MK4S_BED.depth, 7);
+
+        const manifest = JSON.parse(
+          strFromU8(files["Metadata/InsoleStudio-density.json"]),
+        );
+        expect(manifest.placement).toMatchObject({
+          mode: "mk4s",
+          target: "Original Prusa MK4 / MK4S",
+          bed: MK4S_BED,
+          scale: 1,
+          fits: true,
+          requiredClearance: 3,
+        });
+        expect(manifest.placement.rotationDegrees).toBe(
+          expected.rotationDegrees,
+        );
+        expect(manifest.placement.bounds).toEqual(expected.bounds);
+        expect(manifest.containsPrinterOrFilamentProfile).toBe(false);
+        const readme = strFromU8(files["Metadata/InsoleStudio-README.txt"]);
+        expect(readme).toContain("250 x 210 mm MK4/S bed, at 100% scale");
+        expect(readme).toContain("Each foot is fitted independently");
+        expect(readme).toContain("all density modifiers move with the solid");
+        expect(readme).toContain("Brim, skirt, and purge features need");
+      } finally {
+        geometry.dispose();
+      }
+    },
+  );
+
+  it("fits the actual printable footprint even when a setting modifier extends beyond the bed", () => {
+    const p = cloneParams(DEFAULT_PARAMS);
+    p.density.zones = [
+      { ...makeDensityZone(), width: 300, length: 450, offset: 150 },
+    ];
+    const exported = unzipSync(prusaProject(p, "right"));
+    const model = strFromU8(exported["3D/3dmodel.model"]);
+    const manifest = JSON.parse(
+      strFromU8(exported["Metadata/InsoleStudio-density.json"]),
+    );
+    const geometry = buildInsoleGeometry(p, "right", 160);
+    try {
+      expect(manifest.placement).toMatchObject(planBedPlacement(geometry));
+      const matrix = buildTransform(model);
+      const solidCount = geometry.getAttribute("position").count;
+      const modifierBounds = boundsXY(
+        readVertices(model)
+          .slice(solidCount)
+          .map((point) => transformPoint(matrix, point)),
+      );
+      expect(
+        modifierBounds.minX < 0 ||
+          modifierBounds.maxX > MK4S_BED.width ||
+          modifierBounds.minY < 0 ||
+          modifierBounds.maxY > MK4S_BED.depth,
+      ).toBe(true);
+      expect(manifest.placement.fits).toBe(true);
+    } finally {
+      geometry.dispose();
+    }
+  });
+
+  it("refuses an impossible MK4/S placement without shrinking, while original coordinates remain available", () => {
+    const p = cloneParams(DEFAULT_PARAMS);
+    p.length = 420;
+    p.width = 180;
+    expect(() => prusaProject(p, "right")).toThrow(/cannot fit.*100% scale/);
+    expect(() =>
+      prusaProject(p, "left", "Large foot", { placement: "mk4s" }),
+    ).toThrow(/original coordinates.*never shrinks/);
+    const exported = unzipSync(
+      prusaProject(p, "right", "Large foot", { placement: "original" }),
+    );
+    expect(strFromU8(exported["3D/3dmodel.model"])).toContain(
+      '<build><item objectid="1" printable="1"/></build>',
+    );
+    const manifest = JSON.parse(
+      strFromU8(exported["Metadata/InsoleStudio-density.json"]),
+    );
+    expect(manifest.placement).toEqual({ mode: "original", scale: 1 });
+    expect(strFromU8(exported["Metadata/InsoleStudio-README.txt"])).toContain(
+      "No bed placement is applied",
+    );
+  });
+
+  it("allows a physically fitting insole with a smaller explicitly requested bed margin", () => {
+    const p = cloneParams(DEFAULT_PARAMS);
+    p.length = 285;
+    p.width = 125;
+    expect(() => prusaProject(p, "right")).toThrow(/3 mm edge clearance/);
+    const exported = unzipSync(
+      prusaProject(p, "right", "Close fit", {
+        placement: "mk4s",
+        clearance: 0,
+      }),
+    );
+    const manifest = JSON.parse(
+      strFromU8(exported["Metadata/InsoleStudio-density.json"]),
+    );
+    expect(manifest.placement.requiredClearance).toBe(0);
+    expect(manifest.placement.clearance).toBeGreaterThan(0);
+    expect(manifest.placement.clearance).toBeLessThan(3);
+    expect(manifest.placement.scale).toBe(1);
+    expect(manifest.placement.fits).toBe(true);
+    expect(strFromU8(exported["Metadata/InsoleStudio-README.txt"])).toContain(
+      "requested model-to-bed margin: 0 mm",
+    );
+  });
+
   it("exports the full heel lift and modifiers tall enough to cover it for either foot", () => {
     const p = cloneParams(DEFAULT_PARAMS);
     p.heelLift = 40;
@@ -212,6 +419,7 @@ describe("PrusaSlicer density exports", () => {
     expect(manifest.units).toBe("millimeter");
     expect(manifest.base.fill_density).toBe("18%");
     expect(manifest.containsPrinterOrFilamentProfile).toBe(false);
+    expect(manifest.placement).toBeUndefined();
     expect(manifest.modifiers.map((m: { infill: number }) => m.infill)).toEqual(
       [45, 10, 30, 8],
     );
@@ -235,6 +443,7 @@ describe("PrusaSlicer density exports", () => {
     expect(readme).toContain("Add modifier > Load");
     expect(readme).toContain("NONPRINTING");
     expect(readme).toContain("Later modifiers take priority");
+    expect(readme).not.toContain("MK4 / MK4S BED PLACEMENT");
     for (const modifier of manifest.modifiers)
       expect(readme).toContain(modifier.file);
   });

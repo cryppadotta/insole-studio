@@ -40,6 +40,8 @@ import InsoleViewer from "./Viewer";
 import Measure from "./Measure";
 import SupportControls from "./SupportControls";
 import DensityControls from "./DensityControls";
+import BedPlacementPreview from "./BedPlacementPreview";
+import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
 import { getDensityRegions } from "./density";
 import { prusaProject, modifierBundle } from "./prusa";
 import SizePresets from "./SizePresets";
@@ -221,6 +223,12 @@ export default function InsoleApp() {
   const [exportFormat, setExportFormat] = useState<"3mf" | "stl" | "bundle">(
     "3mf",
   );
+  const [exportPlacement, setExportPlacement] = useState<PlacementMode>(
+    preferences.exportPlacement ?? "mk4s",
+  );
+  const [bedClearance, setBedClearance] = useState(
+    preferences.bedClearance ?? 3,
+  );
   const importRef = useRef<HTMLInputElement>(null);
   const lastEdit = useRef(0);
   const p = history.present[side];
@@ -292,6 +300,8 @@ export default function InsoleApp() {
       sizeSystem,
       sizeValue,
       selectedDensityZoneId: selectedDensityZone?.id ?? "",
+      exportPlacement,
+      bedClearance,
     });
   }, [
     side,
@@ -301,6 +311,8 @@ export default function InsoleApp() {
     sizeSystem,
     sizeValue,
     selectedDensityZone?.id,
+    exportPlacement,
+    bedClearance,
   ]);
   useEffect(() => {
     if (!toast) return;
@@ -405,10 +417,44 @@ export default function InsoleApp() {
     ].filter(Boolean);
   };
   const issues = fitIssues(side);
-  const exportIssues =
+  const shoeExportIssues =
     exportSide === "pair"
       ? [...fitIssues("left"), ...fitIssues("right")]
       : issues;
+  const bedPlacements = useMemo(() => {
+    if (
+      modal !== "export" ||
+      exportFormat !== "3mf" ||
+      exportPlacement !== "mk4s"
+    )
+      return [];
+    const sides: Foot[] = exportSide === "pair" ? ["left", "right"] : [side];
+    return sides.map((foot) => {
+      const geometry = buildInsoleGeometry(history.present[foot], foot, 160);
+      try {
+        return { foot, placement: planBedPlacement(geometry, bedClearance) };
+      } finally {
+        geometry.dispose();
+      }
+    });
+  }, [
+    modal,
+    exportFormat,
+    exportPlacement,
+    exportSide,
+    side,
+    history.present,
+    bedClearance,
+  ]);
+  const exportIssues = [
+    ...shoeExportIssues,
+    ...bedPlacements
+      .filter(({ placement }) => !placement.fits)
+      .map(
+        ({ foot, placement }) =>
+          `${foot === "right" ? "Right" : "Left"} footprint cannot fit the ${MK4S_BED.width} × ${MK4S_BED.depth} mm bed with ${bedClearance} mm edge clearance at full scale (${placement.size.width.toFixed(1)} × ${placement.size.depth.toFixed(1)} mm at its best angle). Lower the clearance, adjust the dimensions, or choose Original coordinates for another bed.`,
+      ),
+  ];
   const saveProject = () => {
     downloadFile(
       JSON.stringify(currentProject, null, 2),
@@ -462,7 +508,10 @@ export default function InsoleApp() {
           } else {
             const bytes =
               exportFormat === "3mf"
-                ? prusaProject(history.present[foot], foot, project.name)
+                ? prusaProject(history.present[foot], foot, project.name, {
+                    placement: exportPlacement,
+                    clearance: bedClearance,
+                  })
                 : modifierBundle(history.present[foot], foot, project.name);
             downloadFile(
               new Uint8Array(bytes).buffer,
@@ -479,8 +528,12 @@ export default function InsoleApp() {
               : "Modifier bundle exported with instructions and matching coordinates.",
         );
         setModal(null);
-      } catch {
-        setToast("Print export failed. Your editable project is still saved.");
+      } catch (error) {
+        setToast(
+          error instanceof Error
+            ? error.message
+            : "Print export failed. Your editable project is still saved.",
+        );
       } finally {
         setExportBusy(false);
       }
@@ -616,25 +669,21 @@ export default function InsoleApp() {
             <h2>
               {step === "shape" ? (
                 <>
-                  A shape that’s{" "}
-                  <br />
+                  A shape that’s <br />
                   all yours.
                 </>
               ) : step === "support" ? (
                 <>
-                  A little support.{" "}
-                  <br />A better fit.
+                  A little support. <br />A better fit.
                 </>
               ) : step === "density" ? (
                 <>
-                  Tune the{" "}
-                  <br />
+                  Tune the <br />
                   feel.
                 </>
               ) : (
                 <>
-                  From pixels{" "}
-                  <br />
+                  From pixels <br />
                   to a first fit.
                 </>
               )}
@@ -1310,6 +1359,65 @@ export default function InsoleApp() {
               </span>
             </label>
           </div>
+          {exportFormat === "3mf" && (
+            <section
+              className="sole-bed-placement"
+              aria-label="Print bed placement"
+            >
+              <label htmlFor="insole-export-placement">
+                Print bed placement
+              </label>
+              <select
+                id="insole-export-placement"
+                value={exportPlacement}
+                onChange={(event) =>
+                  setExportPlacement(event.target.value as PlacementMode)
+                }
+              >
+                <option value="mk4s">Prusa MK4 / MK4S · 250 × 210 mm</option>
+                <option value="original">
+                  Original coordinates · manual placement
+                </option>
+              </select>
+              {exportPlacement === "mk4s" ? (
+                <>
+                  <Measure
+                    label="Bed edge clearance"
+                    value={bedClearance}
+                    min={0}
+                    max={10}
+                    step={0.5}
+                    onChange={setBedClearance}
+                  />
+                  <div className="sole-bed-previews">
+                    {bedPlacements.map(({ foot, placement }) => (
+                      <BedPlacementPreview
+                        key={foot}
+                        params={history.present[foot]}
+                        side={foot}
+                        placement={placement}
+                      />
+                    ))}
+                  </div>
+                  <p>
+                    Each file opens rotated and centered at full scale. Density
+                    regions move with the insole. Check room for your skirt or
+                    brim in PrusaSlicer.
+                  </p>
+                  {exportSide === "pair" && (
+                    <p>
+                      Left and right are separate files for separate plates.
+                    </p>
+                  )}
+                </>
+              ) : (
+                <p>
+                  The design keeps its original coordinates. Position the whole
+                  insole on your chosen bed in PrusaSlicer.
+                </p>
+              )}
+            </section>
+          )}
           <div className="sole-export-facts">
             <span>
               <Check size={14} />
@@ -1325,10 +1433,7 @@ export default function InsoleApp() {
             </span>
           </div>
           {exportIssues.length > 0 && (
-            <p className="sole-export-error">
-              {exportIssues.join(" ")} Adjust your design or shoe measurements
-              before export.
-            </p>
+            <p className="sole-export-error">{exportIssues.join(" ")}</p>
           )}
           <p className="sole-print-note">
             {exportFormat === "stl"

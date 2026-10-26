@@ -28,6 +28,7 @@
 .insole-app button:focus-visible,
 .insole-app a:focus-visible,
 .insole-app input:focus-visible,
+.insole-app select:focus-visible,
 .insole-app svg [tabindex]:focus-visible {
   outline: 2px solid var(--sole-green);
   outline-offset: 4px;
@@ -1264,6 +1265,92 @@
   border-bottom: 1px solid #e3e9da;
   padding: 15px 0;
   margin-bottom: 16px;
+}
+.sole-bed-placement {
+  padding: 17px;
+  margin-bottom: 20px;
+  border: 1px solid #dbe4d1;
+  border-radius: 5px;
+  background: #f6f8ef;
+}
+.sole-bed-placement > label {
+  display: block;
+  margin-bottom: 8px;
+  color: #547047;
+  font-size: 11px;
+  font-weight: 500;
+}
+.sole-bed-placement > select {
+  width: 100%;
+  padding: 9px 7px;
+  border: 1px solid #cddbc2;
+  border-radius: 4px;
+  background: #fffef8;
+  color: #47613c;
+  font: inherit;
+  font-size: 11px;
+}
+.sole-bed-placement .sole-measure {
+  margin: 17px 0;
+}
+.sole-bed-placement > p {
+  color: #809273;
+  font-size: 10px;
+  line-height: 1.7;
+  margin: 12px 0 0;
+}
+.sole-bed-previews {
+  display: grid;
+  gap: 10px;
+}
+.sole-bed-preview {
+  display: flex;
+  align-items: center;
+  gap: 17px;
+  margin: 0;
+  padding: 10px;
+  border: 1px solid #dce5d3;
+  border-radius: 4px;
+  background: #fbfcf7;
+}
+.sole-bed-preview > svg {
+  display: block;
+  flex: 0 0 126px;
+  width: 126px;
+  height: auto;
+  overflow: hidden;
+}
+.sole-bed-preview figcaption {
+  display: grid;
+  gap: 6px;
+  color: #809472;
+  font: 9px/1.5 var(--mono);
+}
+.sole-bed-preview strong {
+  color: #506d42;
+  font: 500 12px "IBM Plex Sans", sans-serif;
+}
+.sole-bed-preview small {
+  font-size: 8px;
+  color: #66875b;
+}
+.sole-bed-preview.outside small {
+  color: #aa7243;
+}
+@media (max-width: 500px) {
+  .sole-bed-placement {
+    padding: 12px;
+  }
+  .sole-bed-preview {
+    gap: 10px;
+  }
+  .sole-bed-preview > svg {
+    flex-basis: 96px;
+    width: 96px;
+  }
+  .sole-bed-preview figcaption {
+    font-size: 8px;
+  }
 }
 .sole-export-facts span {
   display: flex;

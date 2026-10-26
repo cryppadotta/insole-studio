@@ -7,8 +7,25 @@ import {
   clampParams,
   type InsoleParams,
 } from "./model";
+import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
 
 type Foot = "left" | "right";
+
+export interface PrusaProjectOptions {
+  /** Rotate and center the complete insole on an MK4/S bed at its original size. */
+  placement?: PlacementMode;
+  /** Requested XY model-to-bed margin, from 0 to 10 mm. Default: 3 mm. */
+  clearance?: number;
+}
+
+type ProjectPlacement =
+  | { mode: "original"; scale: 1 }
+  | ({
+      mode: "mk4s";
+      scale: 1;
+      target: "Original Prusa MK4 / MK4S";
+      bed: typeof MK4S_BED;
+    } & ReturnType<typeof planBedPlacement>);
 
 /** PrusaSlicer does not support gyroid at exactly 100% infill. */
 function fillPattern(
@@ -101,10 +118,30 @@ export function prusaProject(
   params: InsoleParams,
   side: Foot,
   name = "Insole Studio",
+  options: PrusaProjectOptions = {},
 ): Uint8Array {
   const p = clampParams(params);
   const volumes = exportVolumes(p, side, name);
   try {
+    // Only the printable solid determines fit. Modifiers intentionally extend
+    // outside it, but every volume shares the same rigid build-item transform.
+    const placement: ProjectPlacement =
+      (options.placement ?? "mk4s") === "original"
+        ? { mode: "original", scale: 1 }
+        : {
+            mode: "mk4s",
+            target: "Original Prusa MK4 / MK4S",
+            bed: MK4S_BED,
+            scale: 1,
+            ...planBedPlacement(volumes[0].geometry, options.clearance),
+          };
+    if (placement.mode === "mk4s" && !placement.fits) {
+      throw new Error(
+        `This insole cannot fit the Prusa MK4/S 250 × 210 mm bed at 100% scale with ${placement.requiredClearance} mm edge clearance. Its best rotated footprint is ${placement.size.width.toFixed(1)} × ${placement.size.depth.toFixed(1)} mm. Choose original coordinates for a larger printer, or adjust the insole dimensions; the export never shrinks your design.`,
+      );
+    }
+    const buildTransform =
+      placement.mode === "mk4s" ? ` transform="${placement.transform3mf}"` : "";
     const vertices: string[] = [];
     const triangles: string[] = [];
     const settings: string[] = [];
@@ -172,7 +209,7 @@ export function prusaProject(
 <vertices>${vertices.join("\n")}</vertices>
 <triangles>${triangles.join("\n")}</triangles>
 </mesh></object></resources>
-<build><item objectid="1" printable="1"/></build>
+<build><item objectid="1" printable="1"${buildTransform}/></build>
 </model>`;
     const config = `${HEADER}
 <config><object id="1" instances_count="1">
@@ -188,10 +225,10 @@ ${settings.join("\n")}
         "3D/3dmodel.model": strToU8(model),
         "Metadata/Slic3r_PE_model.config": strToU8(config),
         "Metadata/InsoleStudio-density.json": strToU8(
-          JSON.stringify(densityManifest(p, side, volumes), null, 2),
+          JSON.stringify(densityManifest(p, side, volumes, placement), null, 2),
         ),
         "Metadata/InsoleStudio-README.txt": strToU8(
-          instructions(p, side, volumes),
+          instructions(p, side, volumes, placement),
         ),
       },
       { level: 6 },
@@ -214,7 +251,12 @@ function modifierFilename(volume: ExportVolume, index: number) {
   return `modifiers/${String(index).padStart(2, "0")}-${slug(volume.modifier!.name)}-${volume.modifier!.infill}pct.stl`;
 }
 
-function densityManifest(p: InsoleParams, side: Foot, volumes: ExportVolume[]) {
+function densityManifest(
+  p: InsoleParams,
+  side: Foot,
+  volumes: ExportVolume[],
+  placement?: ProjectPlacement,
+) {
   return {
     format: "insole-studio-density-v1",
     units: "millimeter",
@@ -227,6 +269,7 @@ function densityManifest(p: InsoleParams, side: Foot, volumes: ExportVolume[]) {
     precedence:
       "Later modifiers override earlier ones in overlaps. Custom zones follow arch, heel, and pads.",
     containsPrinterOrFilamentProfile: false,
+    ...(placement ? { placement } : {}),
     modifiers: volumes.slice(1).map((volume, index) => {
       const { geometry: _geometry, ...region } = volume.modifier!;
       return {
@@ -241,12 +284,23 @@ function densityManifest(p: InsoleParams, side: Foot, volumes: ExportVolume[]) {
   };
 }
 
-function instructions(p: InsoleParams, side: Foot, volumes: ExportVolume[]) {
+function instructions(
+  p: InsoleParams,
+  side: Foot,
+  volumes: ExportVolume[],
+  placement?: ProjectPlacement,
+) {
   const manifest = densityManifest(p, side, volumes);
+  const placementInstructions = placement
+    ? placement.mode === "mk4s"
+      ? `\nMK4 / MK4S BED PLACEMENT\nThis ${side} insole is rotated ${placement.rotationDegrees.toFixed(2)} degrees around Z and centered on the\n250 x 210 mm MK4/S bed, at 100% scale. Its printable footprint is\n${placement.size.width.toFixed(2)} x ${placement.size.depth.toFixed(2)} mm, with ${placement.clearance.toFixed(2)} mm minimum XY edge clearance\n(requested model-to-bed margin: ${placement.requiredClearance} mm).\nThe one parent build item carries the transformation; all density modifiers move with the solid.\nEach foot is fitted independently. The other foot is a separate project, not a second insole on this bed.\nKeep this whole-parent placement when opening the project. Brim, skirt, and purge features need\nadditional space: check your selected printer and sliced Preview before printing.\nThe target is placement information only; no printer or filament preset is embedded.\n`
+      : `\nORIGINAL COORDINATES\nThis ${side} insole retains its original design coordinates at 100% scale. No bed placement is applied.\nRotate and position the whole parent insole on your selected printer bed; its density modifiers\nmust move with it. Each foot is a separate project.\n`
+    : "";
   return `INSOLE STUDIO — ${side.toUpperCase()} INSOLE DENSITY DESIGN
 
 The insole is the one printable solid. All region meshes are NONPRINTING setting modifiers.
 Infill percentage is a slicer setting, not a measurement of material density, Shore hardness, or compression.
+${placementInstructions}
 
 PREFERRED: PRUSASLICER 2.9.x 3MF
 1. Use the separate PrusaSlicer 3MF download from Insole Studio and import/open it in PrusaSlicer 2.9.x.

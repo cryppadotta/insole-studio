@@ -15,13 +15,17 @@ Overrides are absolute percentages, not summed contributions. Priority is arch �
 
 ## Export and slice
 
-1. Choose **Export 3MF**, keep **PrusaSlicer 3MF** selected, and download the current foot or both feet.
+1. Choose **Export 3MF**, keep **PrusaSlicer 3MF** selected, and use the default **Prusa MK4 / MK4S · 250 × 210 mm** bed placement. Download the current foot or both feet; a pair produces two files intended for separate plates.
 2. Open/import the file in PrusaSlicer **2.9.2 or later in the 2.9.x series**. The object list should show one printable insole and its parameter modifiers, labeled with their percentages and vertical scopes.
 3. Select your printer and calibrated **Siraya Flex TPU Air 95A** filament settings. This design export does not supply or replace your printer, temperature, extrusion multiplier, layer, or shell profiles.
 4. Slice and inspect the toolpaths, particularly inside the base and where modifiers overlap. At exactly 100% infill, the export selects Rectilinear because Gyroid does not support 100% in PrusaSlicer.
 5. Save the resulting PrusaSlicer project after choosing the printer and material settings.
 
-A long insole may need diagonal rotation to fit your printer's bed. Rotate and position the whole parent insole so its modifiers follow together; do not scale it to fit or move modifier parts independently. In the desktop verification, the 270 mm sample fit a 250 × 210 mm MK4 bed after a 50° Z rotation and centering.
+The default 3MF export automatically rotates and centers each foot at **100% scale**. **Bed edge clearance** starts at **3 mm** and can be adjusted from 0–10 mm between the printable insole's exterior and the selected 250 × 210 mm bed edges. Its density modifiers move with it. The selected bed is a placement target, not a printer or filament profile: choose your actual printer in PrusaSlicer and verify its bed outline and any skirt or brim before slicing. The MK4S's published build area is 250 × 210 × 220 mm. [Official MK4S specifications](https://www.prusa3d.com/product/original-prusa-mk4s-3d-printer-5/).
+
+If the insole cannot fit with the chosen clearance, automatic export is blocked with feedback; it never scales the design down. For a tight fit, lower the clearance and inspect the skirt or brim in PrusaSlicer. For a different bed or manual placement, choose **Original coordinates · manual placement** at export, then rotate and position the whole parent insole in PrusaSlicer so its modifiers follow together. Keep 100% scale and do not move modifier parts independently. Exporting both feet produces two independent files, not a guarantee that the pair fits one plate.
+
+The downloadable TPU calibration bundle remains targeted to the stock **MK4 Input Shaper, single extruder, 0.4 mm nozzle**. Selecting MK4S bed placement does not change those presets' compatibility or supply MK4S machine settings.
 
 **Modifier ZIP** is the manual fallback. It contains the solid STL, aligned modifier STLs, settings JSON and a README. Load the solid first, then use **Add modifier → Load** for each region and enter its supplied infill setting. Modifier STLs are not extra printable parts; retain their coordinates. **STL only** deliberately exports shape without density settings.
 

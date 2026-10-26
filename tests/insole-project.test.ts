@@ -668,6 +668,26 @@ describe("private studio preferences", () => {
     });
   });
 
+  it("remembers validated bed placement locally without adding it to cookies", () => {
+    const storage = memoryStorage();
+    const mockDocument = { cookie: "" };
+    vi.stubGlobal("localStorage", storage);
+    vi.stubGlobal("document", mockDocument);
+    saveStudioPreferences({ exportPlacement: "original", bedClearance: 0 });
+    expect(readStudioPreferences()).toEqual({
+      exportPlacement: "original",
+      bedClearance: 0,
+    });
+    expect(mockDocument.cookie).not.toMatch(/exportPlacement|bedClearance/);
+    for (const invalid of [-1, 11, null, "3"]) {
+      storage.entries.set(
+        PREFERENCES_STORAGE_KEY,
+        JSON.stringify({ exportPlacement: "unknown", bedClearance: invalid }),
+      );
+      expect(readStudioPreferences()).toEqual({});
+    }
+  });
+
   it("ignores malformed storage and cookies without disrupting editing", () => {
     const storage = memoryStorage();
     storage.entries.set(PREFERENCES_STORAGE_KEY, "{broken");

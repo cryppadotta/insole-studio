@@ -40,6 +40,8 @@ export interface StudioPreferences {
   side?: Foot;
   step?: "shape" | "support" | "density" | "print";
   feature?: "outline" | "arch" | "heel" | "met" | "base";
+  exportPlacement?: "mk4s" | "original";
+  bedClearance?: number;
   selectedPadId?: string;
   selectedDensityZoneId?: string;
   sizeSystem?: string;
@@ -468,6 +470,10 @@ function cleanPreferences(value: unknown): StudioPreferences {
     value.feature === "base"
   )
     preferences.feature = value.feature;
+  if (value.exportPlacement === "mk4s" || value.exportPlacement === "original")
+    preferences.exportPlacement = value.exportPlacement;
+  if (validNumber(value.bedClearance, [0, 10]))
+    preferences.bedClearance = value.bedClearance as number;
   for (const key of [
     "selectedPadId",
     "selectedDensityZoneId",

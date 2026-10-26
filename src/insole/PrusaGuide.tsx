@@ -356,8 +356,9 @@ export default function PrusaGuide() {
                 <p>
                   In the studio, enable any local overrides in{" "}
                   <b>Tune the cushion</b>, choose <b>Export 3MF</b>, keep{" "}
-                  <b>PrusaSlicer 3MF</b> selected, then download a foot or the
-                  pair.
+                  <b>PrusaSlicer 3MF</b> selected, and use the default{" "}
+                  <b>Prusa MK4 / MK4S · 250 × 210 mm</b> bed placement. Download
+                  one foot, or both feet as two files for separate plates.
                 </p>
               </li>
               <li>
@@ -370,13 +371,16 @@ export default function PrusaGuide() {
                 </p>
               </li>
               <li>
-                <strong>Fit the whole insole on the bed.</strong>
+                <strong>Check the automatic placement.</strong>
                 <p>
-                  Select the parent insole in the Object list, rotate it around
-                  Z, then center it. A 270 mm example fit the MK4’s 250 × 210 mm
-                  bed at about <b>50°</b>. Check the outline on your actual bed.
-                  Rotate the parent so its modifiers move together; keep the
-                  design at <b>100% scale</b>.
+                  Each foot arrives rotated and centered at <b>100% scale</b>,
+                  with <b>3 mm bed edge clearance by default</b>. Adjust{" "}
+                  <b>Bed edge clearance</b> from 0–10 mm for your fit. Its
+                  modifiers move with it. Select your actual printer in
+                  PrusaSlicer and check the bed outline, including any skirt or
+                  brim, before slicing. The export’s bed choice controls
+                  placement; it does not select your printer or filament
+                  presets.
                 </p>
               </li>
               <li>
@@ -388,6 +392,16 @@ export default function PrusaGuide() {
                 </p>
               </li>
             </ol>
+            <p className="prusa-fine-print">
+              Using another bed? Choose{" "}
+              <b>Original coordinates · manual placement</b> at export and
+              position the whole parent insole manually in PrusaSlicer so its
+              modifiers stay aligned. Automatic placement blocks an insole that
+              cannot fit with your chosen clearance; it never shrinks your
+              design. For a very tight fit, lower the clearance and check that
+              the insole and any skirt or brim stay inside the actual bed. Two
+              downloaded feet are not arranged together on one plate.
+            </p>
             <aside className="prusa-inline-note">
               <Layers3 size={19} />
               <p>
@@ -701,6 +715,12 @@ export default function PrusaGuide() {
                 for a stock, single-extruder MK4 Input Shaper profile with a 0.4
                 mm nozzle and direct-drive extrusion. Other printers, nozzles or
                 extruders need their own settings.
+              </p>
+              <p>
+                Choosing an MK4S bed for the design export does not change this
+                bundle’s MK4 Input Shaper compatibility. Keep an MK4S printer’s
+                own calibrated print and filament settings when using that
+                machine.
               </p>
             </div>
             <ol className="prusa-steps prusa-import-profiles">
