@@ -364,34 +364,38 @@ function height(p: InsoleParams, x: number, y: number) {
     Math.exp(-1 * ((1 - Math.abs(u)) / 0.2) ** 2) *
     Math.exp(-1 * ((t - 0.14) / 0.145) ** 4);
   const cup = p.heelCupHeight * (1 - (1 - rearRim) * (1 - sideRim));
-  const met = p.pads.reduce(
-    (sum, pad) =>
+  // Arch and pads share a height datum above the structural base. Take their
+  // upper envelope so intersections and duplicate pads never stack height.
+  const support = p.pads.reduce(
+    (highest, pad) =>
       pad.enabled
-        ? sum +
-          pad.height *
-            supportProfile(
-              supportRadius(
-                x,
-                y,
-                pad.offset,
-                pad.position * p.length,
-                pad.width,
-                pad.length,
-                pad.rotation,
+        ? Math.max(
+            highest,
+            pad.height *
+              supportProfile(
+                supportRadius(
+                  x,
+                  y,
+                  pad.offset,
+                  pad.position * p.length,
+                  pad.width,
+                  pad.length,
+                  pad.rotation,
+                ),
+                pad.plateau,
+                pad.curve1,
+                pad.curve2,
               ),
-              pad.plateau,
-              pad.curve1,
-              pad.curve2,
-            )
-        : sum,
-    0,
+          )
+        : highest,
+    arch,
   );
   const toe = p.toeSpring * smoothstep(0.72, 1, t) ** 2;
   // Raise the whole heel seat through 15% of the foot length. Cubic smoothstep
   // tapers this added thickness to zero at 60%, with zero slope at both joins.
   // The bottom remains on the print bed; the heel cup rim is added separately.
   const heelLift = p.heelLift * (1 - smoothstep(0.15, 0.6, t));
-  return p.baseThickness + arch + cup + met + toe + heelLift;
+  return p.baseThickness + cup + support + toe + heelLift;
 }
 
 /** Top z in mm in canonical right-foot coordinates; mirror x for the left. */

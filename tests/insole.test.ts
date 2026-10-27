@@ -171,10 +171,18 @@ describe("parametric insole solid", () => {
     );
     const pad = p.pads[0];
     const bump = surfaceHeight(p, pad.offset, pad.position * p.length);
-    expect(
-      bump -
-        surfaceHeight({ ...p, pads: [] }, pad.offset, pad.position * p.length),
-    ).toBeCloseTo(pad.height);
+    const foundation = surfaceHeight(
+      { ...p, archHeight: 0, pads: [] },
+      pad.offset,
+      pad.position * p.length,
+    );
+    expect(bump - foundation).toBeCloseTo(
+      Math.max(
+        pad.height,
+        surfaceHeight({ ...p, pads: [] }, pad.offset, pad.position * p.length) -
+          foundation,
+      ),
+    );
     expect(surfaceHeight({ ...p, heelCupHeight: 15 }, 0, 0)).toBeGreaterThan(
       surfaceHeight({ ...p, heelCupHeight: 0 }, 0, 0) + 14,
     );
@@ -409,7 +417,7 @@ describe("editable support profiles", () => {
     );
   });
 
-  it("adds any number of enabled pads and keeps disabled pads editable", () => {
+  it("merges any number of enabled pads without stacking their heights", () => {
     const p = bare();
     const first: MetPad = { ...makePad(), offset: 0, position: 0.5, height: 6 };
     const second: MetPad = {
@@ -428,7 +436,7 @@ describe("editable support profiles", () => {
     const withPads = { ...p, pads: [first, second, disabled] };
     expect(
       surfaceHeight(withPads, 0, p.length / 2) - p.baseThickness,
-    ).toBeCloseTo(15);
+    ).toBeCloseTo(9);
     expect(withPads.pads[2].height).toBe(45);
     const many = Array.from({ length: 160 }, (_, index) => ({
       ...makePad(index),
@@ -439,7 +447,7 @@ describe("editable support profiles", () => {
     expect(clampParams({ ...p, pads: many }).pads).toHaveLength(160);
     expect(
       surfaceHeight({ ...p, pads: many }, 0, p.length / 2) - p.baseThickness,
-    ).toBeCloseTo(16);
+    ).toBeCloseTo(0.1);
   });
 
   it("rotates elongated pads around their center and moves them in both axes", () => {
@@ -583,7 +591,10 @@ describe("editable support profiles", () => {
     for (const side of ["left", "right"] as const) checkSolid(p, side);
     const geometry = buildInsoleGeometry(p, "right", 64);
     expect(geometryStats(geometry).minThickness).toBeGreaterThanOrEqual(0.8);
-    expect(geometry.boundingBox!.max.z).toBeGreaterThan(200);
+    expect(geometry.boundingBox!.max.z).toBeGreaterThan(70);
+    expect(geometry.boundingBox!.max.z).toBeLessThanOrEqual(
+      p.baseThickness + p.archHeight + p.heelCupHeight + p.toeSpring + 1e-5,
+    );
     geometry.dispose();
   });
 });

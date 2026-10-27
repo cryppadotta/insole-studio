@@ -251,7 +251,8 @@ export default function SupportControls({
       {feature === "arch" && (
         <>
           <div className="sole-feature-description">
-            Shape and position the arch in every direction.
+            Shape and position the arch in every direction. Heights are measured
+            above the base; where supports overlap, the higher surface wins.
           </div>
           <ShapeEditor
             label="Arch"
@@ -426,7 +427,8 @@ export default function SupportControls({
               {padField("offset", "Pad lateral offset")}
               {padField("rotation", "Pad rotation", "°")}
               <p className="sole-feature-description">
-                Pads blend additively. Overlapping pads combine their heights.
+                Arch and pad heights are measured above the same base. Where
+                they overlap, the higher surface wins; heights do not stack.
               </p>
             </>
           ) : (

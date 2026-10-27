@@ -710,7 +710,7 @@ export default function InsoleApp() {
               {step === "shape"
                 ? "Start with your dimensions. Fine-tune the outline with the orange landmarks."
                 : step === "support"
-                  ? "Build up the surface, one feature at a time. Every adjustment blends smoothly."
+                  ? "Shape each support above the base. Where arch and pads overlap, the higher surface wins."
                   : step === "density"
                     ? "Control internal infill separately from the shape. Paint a footprint with settings, not extra material."
                     : "Check the footprint, then take your design to your slicer."}

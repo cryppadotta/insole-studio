@@ -7,6 +7,7 @@ A browser-based parametric insole editor built with React, Vite and Three.js. De
 - Foot and shoe dimensions, EU/Birkenstock and US size starting points, and editable outline landmarks.
 - Mirrored or independent left/right insoles, undo/redo, autosave and editable JSON projects.
 - Arch and heel controls plus any number of movable, rotated metatarsal pads with editable slope profiles.
+- Arch and pads share a height reference above the base. The higher support surface wins at an overlap, so intersecting or duplicated pads do not add height. The base, heel cup and heel/toe lifts retain their thickness contributions. Crossing support slopes can still form a join.
 - Base infill, support-linked overrides and custom density regions, with full-thickness, base-only or support-only scopes.
 - Interactive 3D, wireframe, height and requested-infill views, plus a top-down editor.
 - Downloads for PrusaSlicer 3MF with infill modifiers, STL, modifier ZIP, full-size SVG outline and editable project JSON.
