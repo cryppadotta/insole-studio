@@ -213,9 +213,67 @@ describe("pad history isolation", () => {
 });
 
 describe("density history isolation", () => {
+  it("tracks temperature and pattern edits on the base and every region independently", () => {
+    const project = newProject();
+    const initial = project.feet.left.density;
+    initial.arch = {
+      infill: 40,
+      scope: "full",
+      pattern: "gyroid",
+      temperature: 250,
+    };
+    initial.heel = {
+      infill: 40,
+      scope: "base",
+      pattern: "gyroid",
+      temperature: 250,
+    };
+    initial.pads["met-pad-1"] = {
+      infill: 40,
+      scope: "support",
+      pattern: "gyroid",
+      temperature: 250,
+    };
+    initial.zones = [{ ...makeDensityZone(), id: "test" }];
+    for (const target of ["base", "arch", "heel", "pad", "zone"]) {
+      for (const field of ["temperature", "pattern"] as const) {
+        const next = cloneDensity(initial);
+        const region =
+          target === "base"
+            ? next
+            : target === "arch"
+              ? next.arch!
+              : target === "heel"
+                ? next.heel!
+                : target === "pad"
+                  ? next.pads["met-pad-1"]
+                  : next.zones[0];
+        if (field === "temperature") region.temperature = 260;
+        else region.pattern = "cubic";
+        let history = createHistory(project.feet, false);
+        history = editHistory(history, {
+          ...history.present,
+          left: { ...history.present.left, density: next },
+        });
+        expect(history.past).toHaveLength(1);
+        expect(history.present.left.density).toEqual(next);
+        expect(history.present.right.density.temperature).toBe(250);
+        const undone = undoHistory(history);
+        expect(undone.present.left.density).toEqual(initial);
+        expect(redoHistory(undone).present.left.density).toEqual(next);
+        expectValidProject(history);
+      }
+    }
+  });
+
   it("captures nested support and overlapping region changes through undo and redo", () => {
     const project = newProject();
-    project.feet.left.density.arch = { infill: 40, scope: "support" };
+    project.feet.left.density.arch = {
+      infill: 40,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    };
     project.feet.left.density.zones.push({
       ...makeDensityZone(),
       id: "first",
@@ -232,9 +290,16 @@ describe("density history isolation", () => {
     next.baseInfill = 35;
     next.pattern = "rectilinear";
     next.arch!.scope = "full";
-    next.heel = { infill: 60, scope: "base" };
+    next.heel = {
+      infill: 60,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "base",
+    };
     next.pads[history.present.left.pads[0].id] = {
       infill: 25,
+      pattern: "gyroid" as const,
+      temperature: 250,
       scope: "support",
     };
     next.zones.push({
@@ -259,6 +324,8 @@ describe("density history isolation", () => {
     expect(history.present.left.density.baseInfill).toBe(20);
     expect(history.present.left.density.arch).toEqual({
       infill: 40,
+      pattern: "gyroid" as const,
+      temperature: 250,
       scope: "support",
     });
     expect(history.present.left.density.zones).toHaveLength(1);
@@ -277,11 +344,34 @@ describe("density history isolation", () => {
     const edits = [
       { ...density, baseInfill: 37 },
       { ...density, pattern: "rectilinear" as const },
-      { ...density, arch: { infill: 42, scope: "full" as const } },
-      { ...density, heel: { infill: 70, scope: "support" as const } },
       {
         ...density,
-        pads: { "met-pad-1": { infill: 15, scope: "base" as const } },
+        arch: {
+          infill: 42,
+          pattern: "gyroid" as const,
+          temperature: 250,
+          scope: "full" as const,
+        },
+      },
+      {
+        ...density,
+        heel: {
+          infill: 70,
+          pattern: "gyroid" as const,
+          temperature: 250,
+          scope: "support" as const,
+        },
+      },
+      {
+        ...density,
+        pads: {
+          "met-pad-1": {
+            infill: 15,
+            pattern: "gyroid" as const,
+            temperature: 250,
+            scope: "base" as const,
+          },
+        },
       },
       ...Object.entries({
         id: "renamed",
@@ -315,8 +405,18 @@ describe("density history isolation", () => {
   it("clones all density collections when linking and preserves the independent snapshot", () => {
     let history = createHistory(newProject().feet, false);
     const next = cloneDensity(history.present.left.density);
-    next.arch = { infill: 40, scope: "support" };
-    next.pads[history.present.left.pads[0].id] = { infill: 25, scope: "full" };
+    next.arch = {
+      infill: 40,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    };
+    next.pads[history.present.left.pads[0].id] = {
+      infill: 25,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
     next.zones.push({ ...makeDensityZone(), id: "heel" });
     history = editHistory(history, {
       ...history.present,

@@ -6,6 +6,7 @@ import {
   cloneDensity,
   createDensitySampler,
   defaultDensity,
+  DEFAULT_PRINT_TEMPERATURE,
   getDensityAt,
   getDensityRegions,
   makeDensityZone,
@@ -63,20 +64,122 @@ function checkClosedOutward(geometry: BufferGeometry) {
 }
 
 describe("slicer density settings", () => {
+  it("inherits legacy region material settings from the base and clamps explicit temperatures", () => {
+    const legacy = {
+      baseInfill: 35,
+      pattern: "cubic",
+      temperature: 260,
+      arch: { infill: 40, scope: "support" },
+      heel: { infill: 45, scope: "base", temperature: 500 },
+      pads: { "met-pad-1": { infill: 60, scope: "full", temperature: -20 } },
+      zones: [
+        { ...makeDensityZone(), pattern: undefined, temperature: undefined },
+      ],
+    };
+    const density = clampDensity(legacy);
+    expect(density.arch).toMatchObject({ pattern: "cubic", temperature: 260 });
+    expect(density.heel).toMatchObject({ pattern: "cubic", temperature: 270 });
+    expect(density.pads["met-pad-1"]).toMatchObject({
+      pattern: "cubic",
+      temperature: 230,
+    });
+    expect(density.zones[0]).toMatchObject({
+      pattern: "cubic",
+      temperature: 260,
+    });
+    expect(clampDensity({ temperature: NaN }).temperature).toBe(
+      DEFAULT_PRINT_TEMPERATURE,
+    );
+    expect(clampDensity({ temperature: Infinity }).temperature).toBe(250);
+    expect(makeDensityZone()).toMatchObject({
+      pattern: "gyroid",
+      temperature: 250,
+    });
+    expect(legacy.arch).not.toHaveProperty("temperature");
+  });
+
+  it("copies each region's pattern and temperature into exported modifier metadata", () => {
+    const params = cloneParams(DEFAULT_PARAMS);
+    params.density.arch = {
+      infill: 40,
+      scope: "support",
+      pattern: "cubic",
+      temperature: 240,
+    };
+    params.density.heel = {
+      infill: 40,
+      scope: "full",
+      pattern: "rectilinear",
+      temperature: 260,
+    };
+    params.density.pads[params.pads[0].id] = {
+      infill: 40,
+      scope: "base",
+      pattern: "gyroid",
+      temperature: 270,
+    };
+    params.density.zones = [
+      { ...makeDensityZone(), pattern: "cubic", temperature: 230 },
+    ];
+    const regions = getDensityRegions(params);
+    expect(
+      regions.map(({ pattern, temperature }) => [pattern, temperature]),
+    ).toEqual([
+      ["cubic", 240],
+      ["rectilinear", 260],
+      ["gyroid", 270],
+      ["cubic", 230],
+    ]);
+    const modifiers = buildDensityModifiers(params, "left");
+    for (const [index, modifier] of modifiers.entries()) {
+      expect(modifier.geometry.userData.densityRegion).toMatchObject({
+        pattern: regions[index].pattern,
+        temperature: regions[index].temperature,
+      });
+      modifier.geometry.dispose();
+    }
+  });
+
+  it("normalizes every temperature to the integer degrees PrusaSlicer stores", () => {
+    const density = clampDensity({
+      temperature: 255.5,
+      arch: { infill: 40, scope: "full", temperature: 245.4 },
+      heel: { infill: 40, scope: "base", temperature: 269.9 },
+      pads: { first: { infill: 40, scope: "support", temperature: 230.1 } },
+      zones: [{ ...makeDensityZone(), temperature: 250.5 }],
+    });
+    expect(density.temperature).toBe(256);
+    expect(density.arch?.temperature).toBe(245);
+    expect(density.heel?.temperature).toBe(270);
+    expect(density.pads.first.temperature).toBe(230);
+    expect(density.zones[0].temperature).toBe(251);
+  });
+
   it("creates independent defaults and deep clones without sharing editable state", () => {
     const first = defaultDensity();
     const second = defaultDensity();
     expect(first).toEqual({
       baseInfill: 20,
       pattern: "gyroid",
+      temperature: 250,
       arch: null,
       heel: null,
       pads: {},
       zones: [],
     });
     const pad = makePad();
-    first.arch = { infill: 38, scope: "support" };
-    first.pads[pad.id] = { infill: 12, scope: "full" };
+    first.arch = {
+      infill: 38,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    };
+    first.pads[pad.id] = {
+      infill: 12,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
     first.zones.push(makeDensityZone());
     const copy = cloneDensity(first);
     copy.arch!.infill = 90;
@@ -95,11 +198,26 @@ describe("slicer density settings", () => {
       {
         baseInfill: 500,
         pattern: "unknown",
-        arch: { infill: -50, scope: "support" },
+        arch: {
+          infill: -50,
+          pattern: "gyroid" as const,
+          temperature: 250,
+          scope: "support",
+        },
         heel: { infill: Infinity, scope: "bad" },
         pads: {
-          first: { infill: 40, scope: "base" },
-          orphan: { infill: 80, scope: "full" },
+          first: {
+            infill: 40,
+            pattern: "gyroid" as const,
+            temperature: 250,
+            scope: "base",
+          },
+          orphan: {
+            infill: 80,
+            pattern: "gyroid" as const,
+            temperature: 250,
+            scope: "full",
+          },
         },
         zones: [
           {
@@ -121,9 +239,26 @@ describe("slicer density settings", () => {
     );
     expect(density.baseInfill).toBe(100);
     expect(density.pattern).toBe("gyroid");
-    expect(density.arch).toEqual({ infill: 0, scope: "support" });
-    expect(density.heel).toEqual({ infill: 20, scope: "full" });
-    expect(density.pads).toEqual({ first: { infill: 40, scope: "base" } });
+    expect(density.arch).toEqual({
+      infill: 0,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    });
+    expect(density.heel).toEqual({
+      infill: 20,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    });
+    expect(density.pads).toEqual({
+      first: {
+        infill: 40,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "base",
+      },
+    });
     expect(density.zones[0]).toMatchObject({
       position: 1,
       offset: -150,
@@ -154,8 +289,18 @@ describe("slicer density settings", () => {
 
   it("keeps density independent from printable shape and clones model density deeply", () => {
     const params = cloneParams(DEFAULT_PARAMS);
-    params.density.arch = { infill: 80, scope: "full" };
-    params.density.pads[params.pads[0].id] = { infill: 7, scope: "base" };
+    params.density.arch = {
+      infill: 80,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
+    params.density.pads[params.pads[0].id] = {
+      infill: 7,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "base",
+    };
     params.density.zones = [makeDensityZone()];
     const clone = cloneParams(params);
     clone.density.arch!.infill = 10;
@@ -203,12 +348,27 @@ describe("slicer density settings", () => {
     ];
     params.density = {
       ...defaultDensity(),
-      arch: { infill: 30, scope: "full" },
-      heel: { infill: 40, scope: "full" },
+      arch: {
+        infill: 30,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "full",
+      },
+      heel: {
+        infill: 40,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "full",
+      },
       pads: Object.fromEntries(
         params.pads.map((pad, index) => [
           pad.id,
-          { infill: 50 + index * 10, scope: "full" },
+          {
+            infill: 50 + index * 10,
+            pattern: "gyroid" as const,
+            temperature: 250,
+            scope: "full",
+          },
         ]),
       ),
       zones: [
@@ -278,9 +438,24 @@ describe("slicer density settings", () => {
 
   it("exports closed outward modifier volumes in millimetres with exact mirrored coordinates", () => {
     const params = cloneParams(DEFAULT_PARAMS);
-    params.density.arch = { infill: 35, scope: "support" };
-    params.density.heel = { infill: 8, scope: "base" };
-    params.density.pads[params.pads[0].id] = { infill: 12, scope: "full" };
+    params.density.arch = {
+      infill: 35,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    };
+    params.density.heel = {
+      infill: 8,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "base",
+    };
+    params.density.pads[params.pads[0].id] = {
+      infill: 12,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
     params.density.zones = [
       {
         ...makeDensityZone(),
@@ -334,7 +509,12 @@ describe("slicer density settings", () => {
     params.toeSpring = 0;
     params.pads.forEach((pad) => (pad.enabled = false));
     params.density.baseInfill = 22;
-    params.density.heel = { infill: 12, scope: "full" };
+    params.density.heel = {
+      infill: 12,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
     const y = params.length * 0.14;
     const top = surfaceHeight(params, 0, y);
     expect(top).toBeGreaterThan(params.baseThickness + 30);

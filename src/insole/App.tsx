@@ -45,6 +45,7 @@ import MaterialSettings from "./MaterialSettings";
 import { DEFAULT_MATERIAL_GRADE, type MaterialGrade } from "./materials";
 import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
 import { getDensityRegions } from "./density";
+import { regionalTemperaturePlan } from "./temperature";
 import { prusaProject, modifierBundle } from "./prusa";
 import SizePresets from "./SizePresets";
 import InsoleOutline from "./Outline";
@@ -476,6 +477,21 @@ export default function InsoleApp() {
           `${foot === "right" ? "Right" : "Left"} footprint cannot fit the ${MK4S_BED.width} × ${MK4S_BED.depth} mm bed with ${bedClearance} mm edge clearance at full scale (${placement.size.width.toFixed(1)} × ${placement.size.depth.toFixed(1)} mm at its best angle). Lower the clearance or adjust the dimensions. For another printer, choose Design only and Original coordinates.`,
       ),
   ];
+  const exportTemperaturePlans = (
+    exportSide === "pair" ? (["left", "right"] as const) : [side]
+  ).map((foot) => ({
+    foot,
+    ...regionalTemperaturePlan(history.present[foot]),
+  }));
+  const hasMixedTemperatures = exportTemperaturePlans.some(
+    (plan) => plan.mixed,
+  );
+  const exportTemperatures = exportTemperaturePlans
+    .map(
+      (plan) =>
+        `${exportSide === "pair" ? `${plan.foot} ` : ""}${plan.wholeInsoleTemperature}°C`,
+    )
+    .join(" / ");
   const saveProject = () => {
     downloadFile(
       JSON.stringify(currentProject, null, 2),
@@ -535,6 +551,7 @@ export default function InsoleApp() {
                     clearance: bedClearance,
                     materialGrade,
                     profileMode: exportProfileMode,
+                    regionalTemperatureMode: "targets-only",
                   })
                 : modifierBundle(history.present[foot], foot, project.name, {
                     materialGrade,
@@ -726,7 +743,7 @@ export default function InsoleApp() {
                 : step === "support"
                   ? "Shape each support above the base. Where arch and pads overlap, the higher surface wins."
                   : step === "density"
-                    ? "Control internal infill separately from the shape. Paint a footprint with settings, not extra material."
+                    ? "Choose infill, pattern and temperature targets for each region. Review which settings your slicer can apply."
                     : "Check the footprint, then take your design to your slicer."}
             </p>
           </div>
@@ -928,6 +945,7 @@ export default function InsoleApp() {
                   id="insole-print-material"
                   grade={materialGrade}
                   onChange={setMaterialGrade}
+                  temperature={p.density.temperature}
                 />
                 <button
                   className="sole-button sole-primary sole-full"
@@ -1430,7 +1448,54 @@ export default function InsoleApp() {
               grade={materialGrade}
               onChange={setMaterialGrade}
               exportMode={exportFormat === "3mf" ? exportProfileMode : "design"}
+              temperature={p.density.temperature}
             />
+          )}
+          {exportFormat !== "stl" && (
+            <section
+              className={`sole-print-check ${hasMixedTemperatures ? "warning" : ""}`}
+              aria-label="Temperature export behavior"
+            >
+              <span>{hasMixedTemperatures ? "!" : <Check size={16} />}</span>
+              <div>
+                <strong>
+                  {hasMixedTemperatures
+                    ? "Regional temperatures require another printing workflow"
+                    : "One printing temperature per insole"}
+                </strong>
+                <p>
+                  Density and pattern apply per region. Regional temperature
+                  targets are saved in the design and export notes; PrusaSlicer
+                  modifiers cannot apply them.
+                </p>
+                <p>
+                  {exportFormat === "3mf" && exportProfileMode === "complete"
+                    ? `This download prints each whole insole at ${exportTemperatures}, with matched starting flow. Different regional targets will not be printed.`
+                    : "This export does not apply a filament temperature. Use a calibrated whole-insole filament profile in PrusaSlicer."}
+                </p>
+                {hasMixedTemperatures &&
+                  exportTemperaturePlans
+                    .filter((plan) => plan.mixed)
+                    .map((plan) => (
+                      <p key={plan.foot}>
+                        <b>
+                          {plan.foot === "left" ? "Left" : "Right"} targets:
+                        </b>{" "}
+                        {plan.regions
+                          .filter(
+                            (region) =>
+                              region.temperature !==
+                              plan.wholeInsoleTemperature,
+                          )
+                          .map(
+                            (region) =>
+                              `${region.name} ${region.temperature}°C`,
+                          )
+                          .join(" · ")}
+                      </p>
+                    ))}
+              </div>
+            </section>
           )}
           {exportFormat === "3mf" && (
             <section
@@ -1520,7 +1585,8 @@ export default function InsoleApp() {
             {exportFormat !== "stl" && (
               <span className="sole-export-region-summary">
                 Base {p.density.baseInfill}% · {p.density.pattern} ·{" "}
-                {getDensityRegions(p).length} modifiers on the current foot
+                {p.density.temperature}°C · {getDensityRegions(p).length}{" "}
+                modifiers on the current foot
               </span>
             )}
             {exportSide === "pair" &&
@@ -1554,9 +1620,13 @@ export default function InsoleApp() {
             <Download size={16} />
             {exportBusy
               ? "Building your solid…"
-              : exportSide === "pair"
-                ? `Download left & right ${exportFormat === "bundle" ? "ZIP" : exportFormat.toUpperCase()}`
-                : `Download ${exportFormat === "bundle" ? "ZIP" : exportFormat.toUpperCase()}`}
+              : exportFormat === "3mf" && hasMixedTemperatures
+                ? exportProfileMode === "complete"
+                  ? `Export infill at ${exportTemperatures}`
+                  : "Export infill 3MF · temperature targets only"
+                : exportSide === "pair"
+                  ? `Download left & right ${exportFormat === "bundle" ? "ZIP" : exportFormat.toUpperCase()}`
+                  : `Download ${exportFormat === "bundle" ? "ZIP" : exportFormat.toUpperCase()}`}
             <ArrowRight size={16} />
           </button>
           <button className="sole-export-outline" onClick={exportOutline}>

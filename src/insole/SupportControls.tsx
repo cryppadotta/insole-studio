@@ -20,6 +20,7 @@ import {
 import CurveEditor from "./CurveEditor";
 import Measure from "./Measure";
 import DensityOverrideControl from "./DensityOverride";
+import RegionMaterialControls from "./RegionMaterialControls";
 
 type Feature = "outline" | "arch" | "heel" | "met" | "base";
 type PadNumberKey =
@@ -271,6 +272,8 @@ export default function SupportControls({
           <DensityOverrideControl
             label="Arch"
             baseInfill={p.density.baseInfill}
+            basePattern={p.density.pattern}
+            baseTemperature={p.density.temperature}
             value={p.density.arch}
             onChange={(arch) =>
               onChange({ ...p, density: { ...p.density, arch } })
@@ -298,6 +301,8 @@ export default function SupportControls({
           <DensityOverrideControl
             label="Heel"
             baseInfill={p.density.baseInfill}
+            basePattern={p.density.pattern}
+            baseTemperature={p.density.temperature}
             value={p.density.heel}
             onChange={(heel) =>
               onChange({ ...p, density: { ...p.density, heel } })
@@ -405,6 +410,8 @@ export default function SupportControls({
               <DensityOverrideControl
                 label="Pad"
                 baseInfill={p.density.baseInfill}
+                basePattern={p.density.pattern}
+                baseTemperature={p.density.temperature}
                 value={p.density.pads[active.id] ?? null}
                 onChange={(value) => {
                   const pads = { ...p.density.pads };
@@ -469,6 +476,33 @@ export default function SupportControls({
             1,
             "0–40 mm of upper-surface lift at the toe.",
           )}
+          <div className="sole-control-heading sole-section-break">
+            <Layers3 size={15} />
+            <h3>Base material</h3>
+          </div>
+          <Measure
+            label="Base infill"
+            value={p.density.baseInfill}
+            min={0}
+            max={100}
+            unit="%"
+            onChange={(baseInfill) =>
+              onChange({ ...p, density: { ...p.density, baseInfill } })
+            }
+            note="Defaults for every region without custom settings."
+          />
+          <RegionMaterialControls
+            label="Base"
+            pattern={p.density.pattern}
+            temperature={p.density.temperature}
+            onPatternChange={(pattern) =>
+              onChange({ ...p, density: { ...p.density, pattern } })
+            }
+            onTemperatureChange={(temperature) =>
+              onChange({ ...p, density: { ...p.density, temperature } })
+            }
+            temperatureNote="Whole-insole print temperature in complete projects; local temperature targets are saved separately. Changing temperature also adjusts the starting flow for foaming TPU."
+          />
         </>
       )}
     </>

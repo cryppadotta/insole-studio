@@ -3,9 +3,19 @@ import type { InsoleParams } from "./model";
 
 /** Infill is a slicer percentage, rather than a material density or hardness. */
 export type DensityScope = "full" | "base" | "support";
+export type DensityPattern = "gyroid" | "cubic" | "rectilinear";
+
+export const DEFAULT_PRINT_TEMPERATURE = 250;
+export const TEMPERATURE_LIMITS = [230, 270] as const;
+
+export function isDensityPattern(value: unknown): value is DensityPattern {
+  return value === "gyroid" || value === "cubic" || value === "rectilinear";
+}
 
 export interface DensityOverride {
   infill: number;
+  pattern: DensityPattern;
+  temperature: number;
   scope: DensityScope;
 }
 
@@ -26,7 +36,8 @@ export interface DensityZone extends DensityOverride {
 
 export interface DensityConfig {
   baseInfill: number;
-  pattern: "gyroid" | "rectilinear";
+  pattern: DensityPattern;
+  temperature: number;
   arch: DensityOverride | null;
   heel: DensityOverride | null;
   pads: Record<string, DensityOverride>;
@@ -46,6 +57,7 @@ export function defaultDensity(): DensityConfig {
   return {
     baseInfill: 20,
     pattern: "gyroid",
+    temperature: DEFAULT_PRINT_TEMPERATURE,
     arch: null,
     heel: null,
     pads: {},
@@ -74,6 +86,8 @@ const DEFAULT_ZONE: Omit<DensityZone, "id" | "name"> = {
   enabled: true,
   shape: "ellipse",
   infill: 12,
+  pattern: "gyroid",
+  temperature: DEFAULT_PRINT_TEMPERATURE,
   scope: "full",
   position: 0.25,
   offset: 0,
@@ -115,19 +129,38 @@ function scope(input: unknown): DensityScope {
   return input === "base" || input === "support" ? input : "full";
 }
 
-function override(input: unknown): DensityOverride | null {
+/** PrusaSlicer stores nozzle temperatures as integer degrees. */
+function printTemperature(input: unknown, fallback: number): number {
+  return Math.round(finite(input, fallback, TEMPERATURE_LIMITS));
+}
+
+function override(
+  input: unknown,
+  basePattern: DensityPattern,
+  baseTemperature: number,
+): DensityOverride | null {
   if (!input || typeof input !== "object" || Array.isArray(input)) return null;
   const raw = record(input);
-  return { infill: finite(raw.infill, 20, [0, 100]), scope: scope(raw.scope) };
+  return {
+    infill: finite(raw.infill, 20, [0, 100]),
+    pattern: isDensityPattern(raw.pattern) ? raw.pattern : basePattern,
+    temperature: printTemperature(raw.temperature, baseTemperature),
+    scope: scope(raw.scope),
+  };
 }
 
 /** Normalize legacy projects and imported edits without mutating their objects. */
 export function clampDensity(input: unknown, padIds?: string[]): DensityConfig {
   const raw = record(input);
+  const basePattern = isDensityPattern(raw.pattern) ? raw.pattern : "gyroid";
+  const baseTemperature = printTemperature(
+    raw.temperature,
+    DEFAULT_PRINT_TEMPERATURE,
+  );
   const validPads = padIds ? new Set(padIds) : null;
   const pads: Record<string, DensityOverride> = {};
   for (const [id, value] of Object.entries(record(raw.pads))) {
-    const clean = override(value);
+    const clean = override(value, basePattern, baseTemperature);
     if (id.trim() && clean && (!validPads || validPads.has(id))) {
       Object.defineProperty(pads, id, {
         value: clean,
@@ -160,6 +193,8 @@ export function clampDensity(input: unknown, padIds?: string[]): DensityConfig {
             fallback.infill,
             DENSITY_ZONE_LIMITS.infill,
           ),
+          pattern: isDensityPattern(zone.pattern) ? zone.pattern : basePattern,
+          temperature: printTemperature(zone.temperature, baseTemperature),
           scope: scope(zone.scope),
           position: finite(
             zone.position,
@@ -187,9 +222,10 @@ export function clampDensity(input: unknown, padIds?: string[]): DensityConfig {
     : [];
   return {
     baseInfill: finite(raw.baseInfill, 20, [0, 100]),
-    pattern: raw.pattern === "rectilinear" ? "rectilinear" : "gyroid",
-    arch: override(raw.arch),
-    heel: override(raw.heel),
+    pattern: basePattern,
+    temperature: baseTemperature,
+    arch: override(raw.arch, basePattern, baseTemperature),
+    heel: override(raw.heel, basePattern, baseTemperature),
     pads,
     zones,
   };
@@ -306,7 +342,12 @@ export function getDensityRegions(p: InsoleParams): DensityRegion[] {
           length: zone.length,
           rotation: zone.rotation,
         },
-        { infill: zone.infill, scope: zone.scope },
+        {
+          infill: zone.infill,
+          pattern: zone.pattern,
+          temperature: zone.temperature,
+          scope: zone.scope,
+        },
       );
   }
   return regions;

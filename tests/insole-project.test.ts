@@ -155,7 +155,12 @@ describe("insole project files", () => {
       expected.feet.right.toeSpring = 8;
       expected.feet.left.pads[0].rotation = -41;
       if (version === 3)
-        expected.feet.left.density.heel = { infill: 12, scope: "full" };
+        expected.feet.left.density.heel = {
+          infill: 12,
+          pattern: "gyroid" as const,
+          temperature: 250,
+          scope: "full",
+        };
       const previous = JSON.parse(JSON.stringify(expected));
       previous.version = version;
       for (const side of ["left", "right"] as const) {
@@ -415,13 +420,157 @@ describe("insole autosave storage", () => {
 });
 
 describe("density project persistence", () => {
+  it("migrates old v3 regional settings using the base pattern and a 250°C default", () => {
+    const previous = JSON.parse(JSON.stringify(newProject()));
+    for (const side of ["left", "right"] as const) {
+      const density = previous.feet[side].density;
+      delete density.temperature;
+      density.pattern = "rectilinear";
+      density.arch = { infill: 40, scope: "support" };
+      density.heel = { infill: 55, scope: "base" };
+      density.pads = { "met-pad-1": { infill: 65, scope: "full" } };
+      density.zones = [{ ...makeDensityZone(), id: "legacy" }];
+      delete density.zones[0].pattern;
+      delete density.zones[0].temperature;
+    }
+    const restored = parseInsoleProject(JSON.stringify(previous));
+    for (const side of ["left", "right"] as const) {
+      const density = restored.feet[side].density;
+      expect(density.temperature).toBe(250);
+      for (const region of [
+        density.arch,
+        density.heel,
+        ...Object.values(density.pads),
+        ...density.zones,
+      ]) {
+        expect(region).toMatchObject({
+          pattern: "rectilinear",
+          temperature: 250,
+        });
+      }
+    }
+    expect(parseInsoleProject(JSON.stringify(restored))).toEqual(restored);
+    previous.feet.left.density.temperature = 260;
+    previous.feet.right.density.temperature = 260;
+    const warmer = parseInsoleProject(JSON.stringify(previous));
+    expect(warmer.feet.left.density.arch?.temperature).toBe(260);
+  });
+
+  it("autosaves independent regional patterns and temperatures and recovers their backup", () => {
+    const storage = memoryStorage();
+    vi.stubGlobal("localStorage", storage);
+    const project = newProject();
+    project.linked = false;
+    project.feet.left.density.temperature = 240;
+    project.feet.left.density.pattern = "cubic";
+    project.feet.left.density.arch = {
+      infill: 40,
+      scope: "full",
+      pattern: "rectilinear",
+      temperature: 260,
+    };
+    project.feet.left.density.heel = {
+      infill: 40,
+      scope: "base",
+      pattern: "cubic",
+      temperature: 230,
+    };
+    project.feet.left.density.pads["met-pad-1"] = {
+      infill: 40,
+      scope: "support",
+      pattern: "gyroid",
+      temperature: 270,
+    };
+    project.feet.left.density.zones = [
+      { ...makeDensityZone(), id: "warm", pattern: "cubic", temperature: 265 },
+    ];
+    saveInsoleProject(project);
+    expect(loadInsoleProject()).toEqual(project);
+    expect(loadInsoleProject().feet.right.density).toEqual(
+      newProject().feet.right.density,
+    );
+    project.feet.left.density.arch.temperature = 255;
+    project.feet.left.density.arch.pattern = "cubic";
+    saveInsoleProject(project);
+    expect(loadInsoleProject()).toEqual(project);
+    storage.entries.set(STORAGE_KEY, "{broken");
+    expect(loadInsoleProject().feet.left.density.arch).toMatchObject({
+      temperature: 260,
+      pattern: "rectilinear",
+    });
+  });
+
+  it("rejects invalid explicit base and regional temperatures and patterns", () => {
+    const original = JSON.parse(JSON.stringify(newProject()));
+    original.linked = false;
+    const density = original.feet.left.density;
+    density.arch = { infill: 40, scope: "full" };
+    density.heel = { infill: 40, scope: "base" };
+    density.pads = { "met-pad-1": { infill: 40, scope: "support" } };
+    density.zones = [{ ...makeDensityZone(), id: "test" }];
+    for (const key of ["base", "arch", "heel", "pad", "zone"]) {
+      for (const invalid of [
+        229.9,
+        255.5,
+        270.1,
+        null,
+        "250",
+        false,
+        {},
+        NaN,
+        Infinity,
+      ]) {
+        const project = JSON.parse(JSON.stringify(original));
+        const current = project.feet.left.density;
+        const target =
+          key === "base"
+            ? current
+            : key === "pad"
+              ? current.pads["met-pad-1"]
+              : key === "zone"
+                ? current.zones[0]
+                : current[key];
+        target.temperature = invalid;
+        expect(() => parseInsoleProject(JSON.stringify(project))).toThrow(
+          /temperature/i,
+        );
+      }
+      for (const invalid of ["grid", null, 250, false, {}]) {
+        const project = JSON.parse(JSON.stringify(original));
+        const current = project.feet.left.density;
+        const target =
+          key === "base"
+            ? current
+            : key === "pad"
+              ? current.pads["met-pad-1"]
+              : key === "zone"
+                ? current.zones[0]
+                : current[key];
+        target.pattern = invalid;
+        expect(() => parseInsoleProject(JSON.stringify(project))).toThrow(
+          /density/i,
+        );
+      }
+    }
+  });
+
   it("autosaves nested density edits and recovers the previous density configuration", () => {
     const storage = memoryStorage();
     vi.stubGlobal("localStorage", storage);
     const project = newProject();
     for (const foot of [project.feet.left, project.feet.right]) {
-      foot.density.arch = { infill: 38, scope: "support" };
-      foot.density.pads[foot.pads[0].id] = { infill: 50, scope: "full" };
+      foot.density.arch = {
+        infill: 38,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "support",
+      };
+      foot.density.pads[foot.pads[0].id] = {
+        infill: 50,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "full",
+      };
       foot.density.zones = [{ ...makeDensityZone(), id: "soft-heel" }];
     }
     saveInsoleProject(project);
@@ -437,6 +586,8 @@ describe("density project persistence", () => {
     expect(recovered.feet.left.density.zones[0].infill).toBe(12);
     expect(recovered.feet.left.density.arch).toEqual({
       infill: 38,
+      pattern: "gyroid" as const,
+      temperature: 250,
       scope: "support",
     });
     expect(recovered.feet.right.density).toEqual(recovered.feet.left.density);
@@ -448,9 +599,24 @@ describe("density project persistence", () => {
     const density = project.feet.left.density;
     density.baseInfill = 15;
     density.pattern = "rectilinear";
-    density.arch = { infill: 43, scope: "support" };
-    density.heel = { infill: 66, scope: "base" };
-    density.pads[project.feet.left.pads[0].id] = { infill: 28, scope: "full" };
+    density.arch = {
+      infill: 43,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "support",
+    };
+    density.heel = {
+      infill: 66,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "base",
+    };
+    density.pads[project.feet.left.pads[0].id] = {
+      infill: 28,
+      pattern: "gyroid" as const,
+      temperature: 250,
+      scope: "full",
+    };
     density.zones = [
       {
         ...makeDensityZone(0),
@@ -525,9 +691,27 @@ describe("density project persistence", () => {
       { ...density, pattern: "honeycomb" },
       { ...density, arch: undefined },
       { ...density, arch: { infill: 30, scope: "outside" } },
-      { ...density, heel: { infill: 101, scope: "full" } },
+      {
+        ...density,
+        heel: {
+          infill: 101,
+          pattern: "gyroid" as const,
+          temperature: 250,
+          scope: "full",
+        },
+      },
       { ...density, pads: null },
-      { ...density, pads: { missing: { infill: 20, scope: "full" } } },
+      {
+        ...density,
+        pads: {
+          missing: {
+            infill: 20,
+            pattern: "gyroid" as const,
+            temperature: 250,
+            scope: "full",
+          },
+        },
+      },
       { ...density, pads: { "met-pad-1": null } },
       {
         ...density,
@@ -598,12 +782,32 @@ describe("density project persistence", () => {
       project.feet[side].pads.push({ ...makePad(1), id: "second-pad" });
     }
     project.feet.left.density.pads = {
-      "met-pad-1": { infill: 40, scope: "full" },
-      "second-pad": { infill: 50, scope: "base" },
+      "met-pad-1": {
+        infill: 40,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "full",
+      },
+      "second-pad": {
+        infill: 50,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "base",
+      },
     };
     project.feet.right.density.pads = {
-      "second-pad": { infill: 50, scope: "base" },
-      "met-pad-1": { infill: 40, scope: "full" },
+      "second-pad": {
+        infill: 50,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "base",
+      },
+      "met-pad-1": {
+        infill: 40,
+        pattern: "gyroid" as const,
+        temperature: 250,
+        scope: "full",
+      },
     };
     expect(parseInsoleProject(JSON.stringify(project))).toEqual(project);
   });

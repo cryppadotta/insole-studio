@@ -14,9 +14,16 @@ function sample() {
   p.density = {
     ...defaultDensity(),
     baseInfill: 18,
-    arch: { infill: 45, scope: "support" },
-    heel: { infill: 10, scope: "full" },
-    pads: { [p.pads[0].id]: { infill: 30, scope: "base" } },
+    arch: { infill: 45, scope: "support", pattern: "gyroid", temperature: 250 },
+    heel: { infill: 10, scope: "full", pattern: "gyroid", temperature: 250 },
+    pads: {
+      [p.pads[0].id]: {
+        infill: 30,
+        scope: "base",
+        pattern: "gyroid",
+        temperature: 250,
+      },
+    },
     zones: [
       {
         ...makeDensityZone(),
@@ -503,7 +510,10 @@ describe("PrusaSlicer density exports", () => {
     p.heelCupHeight = 0;
     p.toeSpring = 0;
     p.pads.forEach((pad) => (pad.enabled = false));
-    p.density = { ...defaultDensity(), heel: { infill: 12, scope: "full" } };
+    p.density = {
+      ...defaultDensity(),
+      heel: { infill: 12, scope: "full", pattern: "gyroid", temperature: 250 },
+    };
 
     for (const side of ["left", "right"] as const) {
       const files = unzipSync(prusaProject(p, side));

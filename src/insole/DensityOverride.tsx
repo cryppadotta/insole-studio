@@ -1,5 +1,8 @@
 import Measure from "./Measure";
-import type { DensityOverride, DensityScope } from "./density";
+import type { DensityOverride, DensityPattern, DensityScope } from "./density";
+import RegionMaterialControls, {
+  densityPatternLabel,
+} from "./RegionMaterialControls";
 
 export function ScopeSelect({
   value,
@@ -29,11 +32,15 @@ export default function DensityOverrideControl({
   label,
   value,
   baseInfill,
+  basePattern,
+  baseTemperature,
   onChange,
 }: {
   label: string;
   value: DensityOverride | null;
   baseInfill: number;
+  basePattern: DensityPattern;
+  baseTemperature: number;
   onChange: (value: DensityOverride | null) => void;
 }) {
   return (
@@ -41,19 +48,31 @@ export default function DensityOverrideControl({
       <label className="sole-density-toggle">
         <input
           type="checkbox"
-          aria-label={`Custom ${label.toLowerCase()} infill`}
+          aria-label={`Custom ${label.toLowerCase()} settings`}
           checked={value !== null}
           onChange={(e) =>
             onChange(
-              e.target.checked ? { infill: baseInfill, scope: "full" } : null,
+              e.target.checked
+                ? {
+                    infill: baseInfill,
+                    pattern: basePattern,
+                    temperature: baseTemperature,
+                    scope: "full",
+                  }
+                : null,
             )
           }
         />
-        <span>Custom {label.toLowerCase()} infill</span>
+        <span>Custom {label.toLowerCase()} settings</span>
         <strong>
           {value ? `${value.infill}%` : `${baseInfill}% inherited`}
         </strong>
       </label>
+      <div className="sole-region-summary">
+        {densityPatternLabel(value?.pattern ?? basePattern)} ·{" "}
+        {value?.temperature ?? baseTemperature}°C
+        {value ? " target" : " · inherited"}
+      </div>
       {value && (
         <>
           <Measure
@@ -63,6 +82,15 @@ export default function DensityOverrideControl({
             max={100}
             unit="%"
             onChange={(infill) => onChange({ ...value, infill })}
+          />
+          <RegionMaterialControls
+            label={label}
+            pattern={value.pattern}
+            temperature={value.temperature}
+            onPatternChange={(pattern) => onChange({ ...value, pattern })}
+            onTemperatureChange={(temperature) =>
+              onChange({ ...value, temperature })
+            }
           />
           <ScopeSelect
             label={`${label} density extent`}
@@ -74,7 +102,7 @@ export default function DensityOverrideControl({
       <p>
         {value
           ? "This footprint follows the support as you move or resize it."
-          : "Uses the base infill until you enable an override."}
+          : "Inherits base infill, pattern and temperature. Enable to customize this footprint."}
       </p>
     </div>
   );

@@ -1,6 +1,7 @@
 import { useRef, type PointerEvent, type KeyboardEvent } from "react";
 import type { InsoleParams } from "./model";
 import { getDensityRegions, type DensityZone } from "./density";
+import { densityPatternLabel } from "./RegionMaterialControls";
 
 export const densityColor = (infill: number) =>
   `hsl(${190 - infill * 1.5} 42% 62%)`;
@@ -139,8 +140,9 @@ export default function DensityOverlay({
             }}
           >
             <title>
-              {region.name} · {region.infill}% infill · {region.scope} ·
-              priority {index + 1}
+              {region.name} · {region.infill}%{" "}
+              {densityPatternLabel(region.pattern)} · {region.temperature}°C
+              target · {region.scope} · priority {index + 1}
             </title>
             {region.shape === "ellipse" ? (
               <ellipse
@@ -170,7 +172,10 @@ export default function DensityOverlay({
               pointerEvents="none"
             >
               <text y="-5" textAnchor="middle" fontSize="6" fill="#35544a">
-                {region.infill}%
+                {region.infill}% · {densityPatternLabel(region.pattern)}
+              </text>
+              <text y="8" textAnchor="middle" fontSize="5" fill="#35544a">
+                {region.temperature}°C target
               </text>
               {zone && (
                 <>

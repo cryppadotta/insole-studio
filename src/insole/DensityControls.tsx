@@ -15,6 +15,9 @@ import {
 } from "./density";
 import DensityOverrideControl, { ScopeSelect } from "./DensityOverride";
 import Measure from "./Measure";
+import RegionMaterialControls, {
+  densityPatternLabel,
+} from "./RegionMaterialControls";
 
 export default function DensityControls({
   params: p,
@@ -90,7 +93,7 @@ export default function DensityControls({
       <div className="sole-control-heading">
         <Layers3 size={15} />
         <h3>Base structure</h3>
-        <span>INFILL %</span>
+        <span>MATERIAL</span>
       </div>
       <Measure
         label="Base infill"
@@ -103,24 +106,18 @@ export default function DensityControls({
         }
         note="Default internal infill wherever no region overrides it."
       />
-      <label className="sole-density-select">
-        Infill pattern
-        <select
-          aria-label="Infill pattern"
-          value={d.pattern}
-          onChange={(e) =>
-            onChange({
-              ...p,
-              density: { ...d, pattern: e.target.value as typeof d.pattern },
-            })
-          }
-        >
-          <option value="gyroid">Gyroid</option>
-          <option value="rectilinear">
-            Rectilinear · alternating cross-hatch
-          </option>
-        </select>
-      </label>
+      <RegionMaterialControls
+        label="Base"
+        pattern={d.pattern}
+        temperature={d.temperature}
+        onPatternChange={(pattern) =>
+          onChange({ ...p, density: { ...d, pattern } })
+        }
+        onTemperatureChange={(temperature) =>
+          onChange({ ...p, density: { ...d, temperature } })
+        }
+        temperatureNote="Whole-insole print temperature in complete projects; local temperature targets are saved separately. Changing temperature also adjusts the starting flow for foaming TPU."
+      />
       <p className="sole-density-help">
         These percentages control internal infill, not a measured compression or
         foam density. At 100%, the export uses rectilinear.
@@ -138,12 +135,16 @@ export default function DensityControls({
           label="Arch"
           value={d.arch}
           baseInfill={d.baseInfill}
+          basePattern={d.pattern}
+          baseTemperature={d.temperature}
           onChange={(arch) => onChange({ ...p, density: { ...d, arch } })}
         />
         <DensityOverrideControl
           label="Heel"
           value={d.heel}
           baseInfill={d.baseInfill}
+          basePattern={d.pattern}
+          baseTemperature={d.temperature}
           onChange={(heel) => onChange({ ...p, density: { ...d, heel } })}
         />
         {p.pads.map((pad, i) => (
@@ -152,6 +153,8 @@ export default function DensityControls({
             label={`Pad ${i + 1}`}
             value={d.pads[pad.id] ?? null}
             baseInfill={d.baseInfill}
+            basePattern={d.pattern}
+            baseTemperature={d.temperature}
             onChange={(value) => {
               const pads = { ...d.pads };
               if (value) pads[pad.id] = value;
@@ -180,7 +183,12 @@ export default function DensityControls({
             <button onClick={() => onSelectZone(zone.id)}>
               <span>{String(i + 1).padStart(2, "0")}</span>
               <strong>{zone.name}</strong>
-              <small>{zone.infill}%</small>
+              <small className="sole-zone-material-summary">
+                <span>
+                  {zone.infill}% · {densityPatternLabel(zone.pattern)}
+                </span>
+                <span>{zone.temperature}°C target</span>
+              </small>
             </button>
             <input
               type="checkbox"
@@ -238,6 +246,15 @@ export default function DensityControls({
             unit="%"
             onChange={(infill) => setZone({ ...selected, infill })}
           />
+          <RegionMaterialControls
+            label="Region"
+            pattern={selected.pattern}
+            temperature={selected.temperature}
+            onPatternChange={(pattern) => setZone({ ...selected, pattern })}
+            onTemperatureChange={(temperature) =>
+              setZone({ ...selected, temperature })
+            }
+          />
           <ScopeSelect
             label="Region density extent"
             value={selected.scope}
@@ -283,9 +300,10 @@ export default function DensityControls({
           <ChevronDown size={14} />
         </summary>
         <p>
-          Percentages are absolute settings, not additive. Priority: arch → heel
-          → pads in order → custom regions in order. The last matching region
-          wins. Move a custom region down to give it priority.
+          Infill, pattern and temperature targets are absolute settings, not
+          additive. Priority: arch → heel → pads in order → custom regions in
+          order. The last matching region wins. Move a custom region down to
+          give it priority.
         </p>
         <p>
           Only the part inside the insole is affected. Regions outside the
@@ -304,23 +322,25 @@ export default function DensityControls({
         Export PrusaSlicer 3MF
       </button>
       <p className="sole-density-help">
-        {getDensityRegions(p).length} non-printing modifiers · preserves your
-        printer and filament profiles.
+        {getDensityRegions(p).length} non-printing modifiers · infill and
+        pattern applied in PrusaSlicer; regional temperature targets saved with
+        your design.
       </p>
       <details className="sole-details sole-material-guide">
         <summary>
-          Siraya Flex TPU Air 95A
+          Siraya Flex TPU Air
           <ChevronDown size={14} />
         </summary>
         <p>
-          Foaming and infill are separate controls. Calibrate nozzle temperature
-          and reduced flow with your printer, then keep those fixed while
-          comparing region infill.
+          Foaming and infill are separate controls. Higher temperature changes
+          the foam expansion, so temperature and reduced flow must be calibrated
+          together. Regional temperature targets describe your intended feel;
+          standard PrusaSlicer modifiers apply infill and pattern only.
         </p>
         <p>
-          Siraya’s 95A guide lists 230–270°C, with temperature-dependent
-          starting flow around 50–90%. These are calibration references, not an
-          installed printer profile.
+          Siraya’s guide lists temperature-dependent starting flow for both 85A
+          and 95A. Complete MK4S projects use the selected grade and base
+          temperature, with a matching starting flow.
         </p>
         <p>
           For repeatable comparisons, print small coupons at several infill
@@ -332,7 +352,7 @@ export default function DensityControls({
           target="_blank"
           rel="noreferrer"
         >
-          Siraya’s 95A temperature & flow guide ↗
+          Siraya’s temperature & flow guide ↗
         </a>
         <a
           href="https://help.prusa3d.com/article/modifiers_1767"

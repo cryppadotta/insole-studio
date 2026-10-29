@@ -11,8 +11,12 @@ import {
 } from "./model";
 import {
   DENSITY_ZONE_LIMITS,
+  DEFAULT_PRINT_TEMPERATURE,
+  TEMPERATURE_LIMITS,
+  isDensityPattern,
   type DensityConfig,
   type DensityOverride,
+  type DensityPattern,
   type DensityScope,
   type DensityZone,
 } from "./density";
@@ -98,6 +102,10 @@ function validNumber(value: unknown, limits: readonly [number, number]) {
   );
 }
 
+function validTemperature(value: unknown): value is number {
+  return validNumber(value, TEMPERATURE_LIMITS) && Number.isInteger(value);
+}
+
 function safeId(value: unknown): value is string {
   return (
     typeof value === "string" &&
@@ -112,7 +120,12 @@ function isDensityScope(value: unknown): value is DensityScope {
   return value === "full" || value === "base" || value === "support";
 }
 
-function readDensityOverride(value: unknown, context: string): DensityOverride {
+function readDensityOverride(
+  value: unknown,
+  context: string,
+  basePattern: DensityPattern,
+  baseTemperature: number,
+): DensityOverride {
   if (
     !isRecord(value) ||
     !validNumber(value.infill, DENSITY_ZONE_LIMITS.infill) ||
@@ -121,7 +134,23 @@ function readDensityOverride(value: unknown, context: string): DensityOverride {
     throw new Error(
       `Invalid ${context}: use an infill from 0–100% and a valid scope.`,
     );
-  return { infill: value.infill as number, scope: value.scope };
+  if (Object.hasOwn(value, "pattern") && !isDensityPattern(value.pattern))
+    throw new Error(`Invalid ${context} pattern.`);
+  if (
+    Object.hasOwn(value, "temperature") &&
+    !validTemperature(value.temperature)
+  )
+    throw new Error(
+      `Invalid ${context} temperature: use whole degrees from 230–270°C.`,
+    );
+  return {
+    infill: value.infill as number,
+    pattern: isDensityPattern(value.pattern) ? value.pattern : basePattern,
+    temperature: Object.hasOwn(value, "temperature")
+      ? (value.temperature as number)
+      : baseTemperature,
+    scope: value.scope,
+  };
 }
 
 function readDensity(
@@ -132,24 +161,53 @@ function readDensity(
   if (
     !isRecord(value) ||
     !validNumber(value.baseInfill, DENSITY_ZONE_LIMITS.infill) ||
-    (value.pattern !== "gyroid" && value.pattern !== "rectilinear") ||
+    !isDensityPattern(value.pattern) ||
     !isRecord(value.pads) ||
     !Array.isArray(value.zones)
   )
     throw new Error(`Invalid ${side} foot density settings.`);
+  if (
+    Object.hasOwn(value, "temperature") &&
+    !validTemperature(value.temperature)
+  )
+    throw new Error(
+      `Invalid ${side} foot density temperature: use whole degrees from 230–270°C.`,
+    );
+  const temperature = Object.hasOwn(value, "temperature")
+    ? (value.temperature as number)
+    : DEFAULT_PRINT_TEMPERATURE;
+  const pattern = value.pattern;
   const arch =
     value.arch === null
       ? null
-      : readDensityOverride(value.arch, `${side} foot arch density`);
+      : readDensityOverride(
+          value.arch,
+          `${side} foot arch density`,
+          pattern,
+          temperature,
+        );
   const heel =
     value.heel === null
       ? null
-      : readDensityOverride(value.heel, `${side} foot heel density`);
+      : readDensityOverride(
+          value.heel,
+          `${side} foot heel density`,
+          pattern,
+          temperature,
+        );
   const pads = Object.fromEntries(
     Object.entries(value.pads).map(([id, override]) => {
       if (!safeId(id) || !padIds.has(id))
         throw new Error(`Invalid ${side} foot density pad target: ${id}.`);
-      return [id, readDensityOverride(override, `${side} foot pad density`)];
+      return [
+        id,
+        readDensityOverride(
+          override,
+          `${side} foot pad density`,
+          pattern,
+          temperature,
+        ),
+      ];
     }),
   );
   const ids = new Set<string>();
@@ -175,7 +233,9 @@ function readDensity(
       if (!validNumber(zone[key], DENSITY_ZONE_LIMITS[key]))
         throw new Error(`Invalid ${context} parameter: ${key}.`);
     }
+    const settings = readDensityOverride(zone, context, pattern, temperature);
     return {
+      ...settings,
       id: zone.id,
       name: zone.name,
       enabled: zone.enabled,
@@ -191,7 +251,8 @@ function readDensity(
   });
   return {
     baseInfill: value.baseInfill as number,
-    pattern: value.pattern,
+    pattern,
+    temperature,
     arch,
     heel,
     pads,
@@ -302,7 +363,10 @@ function sameDensityOverride(
 ): boolean {
   return a === null || b === null
     ? a === b
-    : a.infill === b.infill && a.scope === b.scope;
+    : a.infill === b.infill &&
+        a.pattern === b.pattern &&
+        a.temperature === b.temperature &&
+        a.scope === b.scope;
 }
 
 function sameDensity(a: DensityConfig, b: DensityConfig): boolean {
@@ -310,6 +374,7 @@ function sameDensity(a: DensityConfig, b: DensityConfig): boolean {
   return (
     a.baseInfill === b.baseInfill &&
     a.pattern === b.pattern &&
+    a.temperature === b.temperature &&
     sameDensityOverride(a.arch, b.arch) &&
     sameDensityOverride(a.heel, b.heel) &&
     padIds.length === Object.keys(b.pads).length &&
@@ -327,6 +392,8 @@ function sameDensity(a: DensityConfig, b: DensityConfig): boolean {
         zone.enabled === other.enabled &&
         zone.shape === other.shape &&
         zone.scope === other.scope &&
+        zone.pattern === other.pattern &&
+        zone.temperature === other.temperature &&
         (
           Object.keys(
             DENSITY_ZONE_LIMITS,
