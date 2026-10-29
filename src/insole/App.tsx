@@ -477,9 +477,15 @@ export default function InsoleApp() {
       ),
   ];
   const saveProject = () => {
+    const savedAt = new Date();
+    const date = [
+      savedAt.getFullYear(),
+      String(savedAt.getMonth() + 1).padStart(2, "0"),
+      String(savedAt.getDate()).padStart(2, "0"),
+    ].join("-");
     downloadFile(
       JSON.stringify(currentProject, null, 2),
-      `${safeName(project.name)}.insole.json`,
+      `${safeName(project.name)}-${date}-00.insole.json`,
       "application/json",
     );
     setToast("Editable project downloaded.");
