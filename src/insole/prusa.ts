@@ -14,6 +14,7 @@ import {
   type MaterialGrade,
 } from "./materials";
 import { buildCompletePrintConfig } from "./printConfig";
+import printerProfileLicense from "./profiles/PrusaSlicer-AGPL-3.0.txt?raw";
 
 type Foot = "left" | "right";
 export type PrusaProfileMode = "complete" | "design";
@@ -256,6 +257,9 @@ ${settings.join("\n")}
               "Metadata/Slic3r_PE.config": strToU8(
                 buildCompletePrintConfig(materialGrade!),
               ),
+              "Metadata/PrusaSlicer-AGPL-3.0.txt": strToU8(
+                printerProfileLicense,
+              ),
             }
           : {}),
         "Metadata/InsoleStudio-density.json": strToU8(
@@ -400,6 +404,7 @@ WHAT IS AND IS NOT CONTROLLED
 
 Official modifier workflow: https://help.prusa3d.com/article/modifiers_1767
 Format baseline: https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.0/src/libslic3r/Format/3mf.cpp
+${profileMode === "complete" ? "\nPRINTER PROFILE SOURCE AND LICENSE\nThe machine configuration derives from Prusa Research's PrusaSlicer 2.9.2 profiles.\nInsole Studio adds the TPU Air starting presets and removes local connection and bed-file paths.\nThe upstream AGPL-3.0 license is included as Metadata/PrusaSlicer-AGPL-3.0.txt.\nFull configuration source and modification notes: https://github.com/cryppadotta/insole-studio/tree/main/src/insole/profiles\nUpstream source: https://github.com/prusa3d/PrusaSlicer/tree/version_2.9.2/resources/profiles\n" : ""}
 `;
 }
 

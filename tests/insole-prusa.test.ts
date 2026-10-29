@@ -102,10 +102,14 @@ describe("PrusaSlicer density exports", () => {
       expect(config).toContain("M862.1");
       expect(config).toContain("M221 S100");
       expect(config).toContain("; end_gcode = ");
+      expect(
+        strFromU8(complete["Metadata/PrusaSlicer-AGPL-3.0.txt"]),
+      ).toContain("GNU AFFERO GENERAL PUBLIC LICENSE");
       expect(config).not.toMatch(
         /\/Users\/|password=|https?:\/\/[^\s]+\.local/i,
       );
       expect(design["Metadata/Slic3r_PE.config"]).toBeUndefined();
+      expect(design["Metadata/PrusaSlicer-AGPL-3.0.txt"]).toBeUndefined();
       expect(strFromU8(design["[Content_Types].xml"])).not.toContain(
         'PartName="/Metadata/Slic3r_PE.config"',
       );
