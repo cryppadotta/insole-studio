@@ -1,5 +1,10 @@
 import Measure from "./Measure";
-import type { DensityOverride, DensityPattern, DensityScope } from "./density";
+import {
+  DEFAULT_PRINT_TEMPERATURE,
+  type DensityOverride,
+  type DensityPattern,
+  type DensityScope,
+} from "./density";
 import RegionMaterialControls, {
   densityPatternLabel,
 } from "./RegionMaterialControls";
@@ -33,14 +38,12 @@ export default function DensityOverrideControl({
   value,
   baseInfill,
   basePattern,
-  baseTemperature,
   onChange,
 }: {
   label: string;
   value: DensityOverride | null;
   baseInfill: number;
   basePattern: DensityPattern;
-  baseTemperature: number;
   onChange: (value: DensityOverride | null) => void;
 }) {
   return (
@@ -56,7 +59,7 @@ export default function DensityOverrideControl({
                 ? {
                     infill: baseInfill,
                     pattern: basePattern,
-                    temperature: baseTemperature,
+                    temperature: DEFAULT_PRINT_TEMPERATURE,
                     scope: "full",
                   }
                 : null,
@@ -69,9 +72,8 @@ export default function DensityOverrideControl({
         </strong>
       </label>
       <div className="sole-region-summary">
-        {densityPatternLabel(value?.pattern ?? basePattern)} ·{" "}
-        {value?.temperature ?? baseTemperature}°C
-        {value ? " target" : " · inherited"}
+        {densityPatternLabel(value?.pattern ?? basePattern)}
+        {value ? "" : " · inherited"}
       </div>
       {value && (
         <>
@@ -86,11 +88,7 @@ export default function DensityOverrideControl({
           <RegionMaterialControls
             label={label}
             pattern={value.pattern}
-            temperature={value.temperature}
             onPatternChange={(pattern) => onChange({ ...value, pattern })}
-            onTemperatureChange={(temperature) =>
-              onChange({ ...value, temperature })
-            }
           />
           <ScopeSelect
             label={`${label} density extent`}
@@ -102,7 +100,7 @@ export default function DensityOverrideControl({
       <p>
         {value
           ? "This footprint follows the support as you move or resize it."
-          : "Inherits base infill, pattern and temperature. Enable to customize this footprint."}
+          : "Inherits base infill and pattern. Enable to customize this footprint."}
       </p>
     </div>
   );

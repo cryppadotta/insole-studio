@@ -141,8 +141,8 @@ export default function DensityOverlay({
           >
             <title>
               {region.name} · {region.infill}%{" "}
-              {densityPatternLabel(region.pattern)} · {region.temperature}°C
-              target · {region.scope} · priority {index + 1}
+              {densityPatternLabel(region.pattern)} · {region.scope} · priority{" "}
+              {index + 1}
             </title>
             {region.shape === "ellipse" ? (
               <ellipse
@@ -173,9 +173,6 @@ export default function DensityOverlay({
             >
               <text y="-5" textAnchor="middle" fontSize="6" fill="#35544a">
                 {region.infill}% · {densityPatternLabel(region.pattern)}
-              </text>
-              <text y="8" textAnchor="middle" fontSize="5" fill="#35544a">
-                {region.temperature}°C target
               </text>
               {zone && (
                 <>

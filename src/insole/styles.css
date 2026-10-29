@@ -2252,30 +2252,6 @@
   color: #617c64;
   line-height: 1.6;
 }
-.sole-temperature-presets {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 5px;
-  margin: -10px 0 19px;
-}
-.sole-temperature-presets button {
-  padding: 6px 3px;
-  border: 1px solid #d5dfd3;
-  border-radius: 4px;
-  background: #f7faf2;
-  color: #698263;
-  font: 10px var(--mono);
-  cursor: pointer;
-}
-.sole-temperature-presets button[aria-pressed="true"] {
-  border-color: #829d78;
-  background: #e0ebda;
-  color: #45653c;
-}
-.sole-temperature-presets button:focus-visible {
-  outline: 2px solid var(--sole-green);
-  outline-offset: 2px;
-}
 .sole-pad-row .sole-zone-material-summary {
   display: flex;
   flex-direction: column;

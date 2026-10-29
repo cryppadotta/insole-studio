@@ -6,23 +6,22 @@ An STL holds the closed exterior shape. It does not carry local infill percentag
 
 ## Configure the insole
 
-1. In **Add your support**, enable **Custom arch/heel/pad settings** to give an existing support its own infill percentage, Gyroid/Cubic/Rectilinear pattern and temperature target. Its modifier follows the support's position, size and rotation.
-2. In **Tune the cushion**, choose the base infill, pattern and whole-insole temperature, which defaults to **250°C**. Add heel, forefoot, or custom regions to tune other areas without changing the surface shape. Each region can be an ellipse or rectangle, with independent position, size, rotation, infill, pattern and temperature target. New regions also default to **250°C**.
+1. In **Add your support**, enable **Custom arch/heel/pad settings** to give an existing support its own infill percentage and Gyroid/Cubic/Rectilinear pattern. Its modifier follows the support's position, size and rotation.
+2. In **Tune the cushion**, choose the base infill and pattern. Add heel, forefoot, or custom regions to tune other areas without changing the surface shape. Each region can be an ellipse or rectangle, with independent position, size, rotation, infill and pattern.
 3. Choose the vertical extent: **Full thickness** includes both base and raised surface; **Base only** ends at the base-thickness plane; **Support above the base** starts above that plane.
 4. Inspect the plan footprints and requested-infill colors. Custom regions have draggable centers. Colors are a settings preview, not a compression simulation; base-only regions may be visible on the underside rather than the top surface.
 
 Overrides are absolute settings, not summed contributions. Priority is arch → heel → pads in their current order → custom regions in their order. The last matching modifier wins for the supported local infill settings. Move a custom region later in its list to increase its priority. A disabled pad also disables its linked density modifier. Turning off a density override restores inherited base infill and pattern.
 
-Infill, pattern and temperature targets are preserved by autosave and editable project files. Export manifests record the regional temperature targets separately from the settings PrusaSlicer actually applies. A stored target is not a promise of a local nozzle-temperature change.
+Regional infill percentages and patterns are preserved by autosave, editable project files and PrusaSlicer exports. Complete MK4S projects use **250°C for the whole insole**, including the first layer.
 
 ## Export and slice
 
 1. Choose **Export 3MF**, keep **PrusaSlicer 3MF** and **Complete MK4S project** selected. Choose **Siraya Flex TPU Air 85A or 95A** to match the spool. Download the current foot or both feet; a pair produces two files intended for separate plates.
 2. Use **File → Open Project** in PrusaSlicer **2.9.2 or later in the 2.9.x series**, and load the project settings. The object list should show one printable insole and its parameter modifiers, labeled with their percentages and vertical scopes. Importing only geometry does not load the embedded presets.
-3. Check the selected **MK4S standard 0.4 mm nozzle** printer, the **0.20 mm** print preset and matching **Air 85A/95A** filament preset. The complete project applies the whole-insole temperature, **250°C by default**, and a paired grade-specific extrusion multiplier. It also supplies layers, shells and machine start/end G-code, with 2 perimeters and 0.6 mm top/bottom shells. These are calibration starting points; test temperature and flow on a small sample before a full insole.
-4. If any enabled region requests a different temperature, standard 3MF export requires an explicit choice to use the base temperature throughout. The resulting project still applies each region's infill percentage and pattern, but uses one temperature and matched flow. Regional temperature targets remain in the design and export notes. See **Regional temperature targets** below before accepting this fallback.
-5. Slice and inspect the toolpaths, particularly inside the base and where modifiers overlap. At exactly 100% infill, the export selects Rectilinear because Gyroid and Cubic do not support 100% in PrusaSlicer.
-6. Save the resulting PrusaSlicer project after tuning and confirming the printer and material settings.
+3. Check the selected **MK4S standard 0.4 mm nozzle** printer, the **0.20 mm** print preset and matching **Air 85A/95A** filament preset. The complete project applies **250°C to the first layer and all later layers**, with extrusion multiplier **0.675 for Air 85A** or **0.65 for Air 95A**. It also supplies layers, shells and machine start/end G-code, with 2 perimeters and 0.6 mm top/bottom shells. These are calibration starting points; test the flow on a small sample at 250°C before a full insole.
+4. Slice and inspect the toolpaths, particularly inside the base and where modifiers overlap. At exactly 100% infill, the export selects Rectilinear because Gyroid and Cubic do not support 100% in PrusaSlicer.
+5. Save the resulting PrusaSlicer project after tuning and confirming the printer and material settings.
 
 The default complete 3MF export automatically rotates and centers each foot at **100% scale** on its included **250 × 210 mm MK4S bed**. **Bed edge clearance** starts at **3 mm** and can be adjusted from 0–10 mm between the printable insole's exterior and bed edges. Its density modifiers move with it. Verify the printer/nozzle choice and any skirt or brim before slicing. The MK4S's published build area is 250 × 210 × 220 mm. [Official MK4S specifications](https://www.prusa3d.com/product/original-prusa-mk4s-3d-printer-5/).
 
@@ -30,11 +29,11 @@ If the insole cannot fit with the chosen clearance, automatic export is blocked 
 
 The separate downloadable TPU calibration bundles supply print and filament presets for stock **MK4 Input Shaper / MK4S, single extruder, 0.4 mm nozzle** configurations and keep your own printer preset. They are separate from the complete 3MF's included MK4S standard 0.4 mm machine profile. A high-flow nozzle or another printer requires matching calibrated settings.
 
-**Modifier ZIP** is the manual fallback. It contains the solid STL, aligned modifier STLs, settings JSON and a README. Load the solid first, then use **Add modifier → Load** for each region and enter its supplied infill percentage and pattern. Its temperature targets are reference information, not settings encoded in the STL meshes. Modifier STLs are not extra printable parts; retain their coordinates. **STL only** deliberately exports shape without density settings.
+**Modifier ZIP** is the manual fallback. It contains the solid STL, aligned modifier STLs, settings JSON and a README. Load the solid first, then use **Add modifier → Load** for each region and enter its supplied infill percentage and pattern. Modifier STLs are not extra printable parts; retain their coordinates. **STL only** deliberately exports shape without density settings.
 
 ### Inspect the density modifier volumes
 
-Switch PrusaSlicer to **Expert** mode. In the right-hand **Object list**, expand the insole to reveal its model part and modifier children. Select a modifier to inspect its translucent volume on the bed, and select its **Infill** settings to view **Fill density** and **Fill pattern**. Each region uses its own pattern. These volumes are non-printing settings regions, so they do not appear as additional printed objects in the sliced preview. A regional temperature target is not a setting in this Infill panel; inspect the whole-insole temperature under **Filament settings**.
+Switch PrusaSlicer to **Expert** mode. In the right-hand **Object list**, expand the insole to reveal its model part and modifier children. Select a modifier to inspect its translucent volume on the bed, and select its **Infill** settings to view **Fill density** and **Fill pattern**. Each region uses its own pattern. These volumes are non-printing settings regions, so they do not appear as additional printed objects in the sliced preview. Inspect the shared 250°C nozzle temperature under **Filament settings** in a complete MK4S project.
 
 If no modifier children appear, confirm that the design actually has enabled local overrides in **Tune the cushion**, and export **PrusaSlicer 3MF** rather than **STL only**.
 
@@ -52,21 +51,11 @@ Infill percentage is not the finished part's mass fraction, foam density, Shore 
 
 These filaments also change through active foaming. More heat changes expansion, while infill changes the larger internal structure. Siraya's guide gives **separate 85A and 95A tables** for temperature-dependent starting flow. Match the exact grade on the spool; foaming Air presets are not ordinary non-foaming TPU presets.
 
-The editor's whole-insole temperature ranges from **230–270°C** and defaults to **250°C**. Complete projects use the midpoint of the selected grade's manufacturer flow range at 230, 240, 250, 260 and 270°C, interpolating between these points. Intermediate values are the studio's interpolation, not additional manufacturer test points. At 250°C, the starting extrusion multiplier is **0.675 for 85A** and **0.65 for 95A**; leave printer flow at **100%** to avoid applying the reduction twice. These remain calibration starting points. Measure the actual printed dimensions and check for over- or under-extrusion on the same spool and printer. [Siraya's foaming TPU guide](https://siraya.tech/blogs/news/foaming-tpu-filament-guide).
+Complete MK4S projects use **250°C throughout**, with extrusion multiplier **0.675 for Air 85A** or **0.65 for Air 95A**. These are midpoints of the manufacturer's grade-specific starting flow ranges at 250°C. Leave printer flow at **100%** to avoid applying the reduction twice. Measure a small sample and check for gaps or bulging before printing a full pair. [Siraya's foaming TPU guide](https://siraya.tech/blogs/news/foaming-tpu-filament-guide).
 
-The separate downloadable configuration bundles still contain their named **240°C firm START** and **250°C foam START** presets. The complete project instead generates its filament preset for the chosen whole-insole temperature. Changing settings requires slicing again; an existing G-code file does not update.
+Use the regional infill percentages and Gyroid/Cubic/Rectilinear patterns to compare cushioning while keeping that shared temperature constant. Shell thickness, geometry and material grade also affect the feel. Neither percentage nor temperature alone predicts a specific Shore hardness or compression.
 
-### Regional temperature targets
-
-Each arch, heel, metatarsal pad and custom region can store an independent **temperature target**, defaulting to **250°C**, alongside its infill percentage and pattern. Saving these targets lets the design describe the desired material treatment as well as its internal structure.
-
-**Standard PrusaSlicer 2.9.2 modifiers cannot apply nozzle temperature or extrusion multiplier.** Its `PrintRegionConfig` supports local settings such as `fill_density` and `fill_pattern`; temperature and extrusion multiplier belong to the print/filament configuration. Adding a `temperature` key to a modifier does not create a local temperature change. [PrusaSlicer 2.9.2 configuration definitions](https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.2/src/libslic3r/PrintConfig.hpp), [Prusa's modifier guide](https://help.prusa3d.com/article/modifiers_1767).
-
-For that reason, ordinary 3MF export does not silently discard a requested temperature difference. If an enabled region differs from the base temperature, export requires an explicit choice to apply the **base temperature to the whole insole**. The exported modifiers still carry the local percentages and patterns; temperature targets remain reference information in the saved design and manifest. Design-only exports do not install any filament temperature or flow preset, so select those manually in PrusaSlicer.
-
-Printing separate test cylinders sequentially works because one object is completed before the nozzle changes temperature and flow for the next. A single insole is connected: its arch, heel, pad and base share layers. Different temperatures within that insole would need repeated heating, cooling and matched flow changes as the nozzle moves between regions, plus control of transitional material and oozing. Our sequential-cylinder technique does not provide that workflow unchanged. The standard export uses one whole-insole temperature.
-
-Small test coupons using the same shells and material settings provide a repeatable way to compare infill values or temperatures before printing a full pair. Hold temperature and flow constant for an infill comparison, and hold geometry, pattern and infill constant for a temperature comparison. Neither percentage nor temperature alone predicts a specific Shore hardness or compression.
+The separate downloadable configuration bundles retain their named **240°C firm START** and **250°C foam START** presets for manual calibration in PrusaSlicer. The complete MK4S project always includes the 250°C preset. **Design only** leaves the filament preset to you. Changing slicer settings requires slicing again; existing G-code does not update.
 
 ## Verification
 

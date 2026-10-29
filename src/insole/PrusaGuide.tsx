@@ -26,8 +26,6 @@ const sources = {
   modifiers: "https://help.prusa3d.com/article/modifiers_1767",
   shells: "https://help.prusa3d.com/article/layers-and-perimeters_1748",
   flexible: "https://help.prusa3d.com/article/flexible-materials_2057",
-  regionSettings:
-    "https://github.com/prusa3d/PrusaSlicer/blob/version_2.9.2/src/libslic3r/PrintConfig.hpp",
 };
 const downloadBase = `${import.meta.env.BASE_URL}downloads/`;
 
@@ -380,10 +378,10 @@ export default function PrusaGuide() {
                   <b>PrusaSlicer 3MF</b> and the default{" "}
                   <b>Complete MK4S project</b> selected. Choose the Air grade on
                   your spool. The project includes an MK4S standard 0.4 mm
-                  printer, 0.20 mm print settings and a filament preset for the
-                  whole-insole temperature, which defaults to <b>250°C</b>. Flow
-                  is paired with that temperature and material grade. Download
-                  one foot, or both feet as two files for separate plates.
+                  printer, 0.20 mm print settings and a filament preset using
+                  <b> 250°C throughout the insole</b>, including the first
+                  layer. Flow matches the material grade. Download one foot, or
+                  both feet as two files for separate plates.
                 </p>
               </li>
               <li>
@@ -413,25 +411,11 @@ export default function PrusaGuide() {
                 <p>
                   Check the internal toolpaths before exporting G-code. The
                   included filament and print presets are calibration starting
-                  points: test temperature and flow on a small sample, then save
-                  a PrusaSlicer project with your tuned settings.
+                  points: test the flow on a small sample at 250°C, then save a
+                  PrusaSlicer project with your tuned settings.
                 </p>
               </li>
             </ol>
-            <aside className="prusa-inline-note">
-              <Thermometer size={19} />
-              <p>
-                <strong>
-                  Check regional temperature targets before export.
-                </strong>
-                Density and pattern apply through the modifiers. PrusaSlicer
-                2.9.2 cannot apply nozzle temperature through those modifiers.
-                If an enabled region requests a different temperature, ordinary
-                3MF export requires an explicit choice to print the whole insole
-                at the base temperature. The regional targets remain saved in
-                the design and export notes.
-              </p>
-            </aside>
             <p className="prusa-fine-print">
               Using your own presets or another printer? Choose{" "}
               <b>Design only · use my presets</b>. This mode carries shape and
@@ -558,8 +542,7 @@ export default function PrusaGuide() {
               When modifiers overlap, the last matching region wins. Base-only
               regions end at the base-thickness plane; support-only regions
               begin above it. At 100% infill, the export uses Rectilinear
-              because Gyroid and Cubic do not support 100%. Temperature targets
-              are recorded in the project notes, not an Infill setting.
+              because Gyroid and Cubic do not support 100%.
             </p>
           </div>
         </section>
@@ -618,14 +601,14 @@ export default function PrusaGuide() {
                 <span className="prusa-control-icon prusa-warm">
                   <Thermometer size={21} />
                 </span>
-                <h3>Heat changes the material.</h3>
+                <h3>250°C throughout.</h3>
                 <p>
-                  Nozzle temperature changes expansion; flow must be calibrated
-                  with it. Set the whole-insole temperature and save a target
-                  temperature for each region. All start at 250°C.
+                  Complete projects keep one nozzle temperature for the entire
+                  insole. The first layer and every later layer use 250°C, with
+                  starting flow matched to the selected Air grade.
                 </p>
                 <span className="prusa-control-location">
-                  BASE APPLIED / REGIONAL TARGETS SAVED
+                  INCLUDED IN COMPLETE MK4S PROJECTS
                 </span>
               </article>
             </div>
@@ -637,41 +620,13 @@ export default function PrusaGuide() {
               part’s feel.
             </p>
             <p>
-              Siraya’s guide gives separate flow ranges for each grade and
-              temperature. Complete projects pair the whole-insole temperature
-              with a starting extrusion multiplier, using the midpoints at 230,
-              240, 250, 260 and 270°C and interpolating between them. Values
-              between those points are the studio’s interpolation, rather than
-              additional manufacturer test points. At 250°C, the{" "}
-              <b>{material.label}</b> starter uses{" "}
-              <b>{material.foamFlowPercent}%</b>. These are midpoints for
-              calibration, not guaranteed final settings. Tune temperature and
-              flow together to keep the printed dimensions accurate.
-            </p>
-            <aside className="prusa-inline-note">
-              <Thermometer size={19} />
-              <p>
-                <strong>Regional temperature is a saved target.</strong>
-                Infill percentage and pattern export directly. Standard
-                PrusaSlicer 2.9.2 modifier settings do not include nozzle
-                temperature or extrusion multiplier, so a normal 3MF uses one
-                whole-insole temperature. The studio keeps each region’s target
-                in autosave, the editable project and export notes. It does not
-                silently turn those targets into local temperature changes.{" "}
-                <SourceLink href={sources.regionSettings}>
-                  PrusaSlicer’s supported region settings
-                </SourceLink>
-              </p>
-            </aside>
-            <p>
-              Separate temperature-test cylinders can be finished one at a time,
-              with a temperature and flow change between objects. A connected
-              insole needs its arch, heel and pad regions built together on each
-              layer. Printing those regions at different temperatures would need
-              an additional workflow for repeated heating, cooling and flow
-              changes; the sequential-cylinder setup cannot be reused unchanged.
-              For a standard export, use the base temperature for all regions,
-              or explicitly choose that fallback when targets differ.
+              Siraya’s guide gives separate flow ranges for each grade. At
+              250°C, the <b>{material.label}</b> starter uses{" "}
+              <b>{material.foamFlowPercent}% flow</b>, or an extrusion
+              multiplier of <b>{material.foamMultiplier}</b>. This is a midpoint
+              for calibration, not a guaranteed final setting. Check the printed
+              dimensions and adjust flow for your spool if needed. Keep printer
+              flow at 100% so the reduction is applied only once.
             </p>
             <p>
               Dry the filament as the manufacturer directs, feed it with low
@@ -834,9 +789,9 @@ export default function PrusaGuide() {
                 machine, including standard or high-flow nozzle. The separate
                 downloads above keep your printer preset. The studio’s default
                 <b> Complete MK4S project</b> instead embeds an MK4S standard
-                0.4 mm printer and a temperature-matched preset for the selected
-                grade, using 250°C by default. Choose <b>Design only</b> at
-                export to keep your own presets.
+                0.4 mm printer and the selected grade’s 250°C preset for every
+                layer. Choose <b>Design only</b> at export to keep your own
+                presets.
               </p>
             </div>
             <ol className="prusa-steps prusa-import-profiles">

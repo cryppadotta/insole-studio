@@ -273,7 +273,6 @@ export default function SupportControls({
             label="Arch"
             baseInfill={p.density.baseInfill}
             basePattern={p.density.pattern}
-            baseTemperature={p.density.temperature}
             value={p.density.arch}
             onChange={(arch) =>
               onChange({ ...p, density: { ...p.density, arch } })
@@ -302,7 +301,6 @@ export default function SupportControls({
             label="Heel"
             baseInfill={p.density.baseInfill}
             basePattern={p.density.pattern}
-            baseTemperature={p.density.temperature}
             value={p.density.heel}
             onChange={(heel) =>
               onChange({ ...p, density: { ...p.density, heel } })
@@ -411,7 +409,6 @@ export default function SupportControls({
                 label="Pad"
                 baseInfill={p.density.baseInfill}
                 basePattern={p.density.pattern}
-                baseTemperature={p.density.temperature}
                 value={p.density.pads[active.id] ?? null}
                 onChange={(value) => {
                   const pads = { ...p.density.pads };
@@ -494,14 +491,9 @@ export default function SupportControls({
           <RegionMaterialControls
             label="Base"
             pattern={p.density.pattern}
-            temperature={p.density.temperature}
             onPatternChange={(pattern) =>
               onChange({ ...p, density: { ...p.density, pattern } })
             }
-            onTemperatureChange={(temperature) =>
-              onChange({ ...p, density: { ...p.density, temperature } })
-            }
-            temperatureNote="Whole-insole print temperature in complete projects; local temperature targets are saved separately. Changing temperature also adjusts the starting flow for foaming TPU."
           />
         </>
       )}

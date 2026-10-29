@@ -11,16 +11,14 @@ export default function MaterialSettings({
   onChange,
   id,
   exportMode,
-  temperature = 250,
 }: {
   grade: MaterialGrade;
   onChange: (grade: MaterialGrade) => void;
   id: string;
   exportMode?: "complete" | "design";
-  temperature?: number;
 }) {
   const material = TPU_AIR_MATERIALS[grade];
-  const thermal = airTemperatureSettings(grade, temperature);
+  const thermal = airTemperatureSettings(grade);
   return (
     <section className="sole-material-settings" aria-label="Material settings">
       <label htmlFor={id}>Material grade</label>
@@ -36,7 +34,7 @@ export default function MaterialSettings({
       </select>
       <p>{material.description} Match the grade printed on your spool.</p>
       <div className="sole-material-start">
-        <span>{temperature}°C whole-insole start</span>
+        <span>250°C whole-insole start</span>
         <strong>{thermal.flowPercent}% flow</strong>
         <small>Calibrate a sample; keep printer flow at 100%.</small>
       </div>
@@ -50,7 +48,7 @@ export default function MaterialSettings({
       <p>
         {exportMode === "design"
           ? "This export records the material as a note. Select your own calibrated printer, print and filament presets in PrusaSlicer. "
-          : `Complete 3MF projects include an MK4S standard 0.4 mm printer, 0.20 mm print settings and this grade’s ${temperature}°C whole-insole starting settings. Regional temperature targets are saved separately and are not applied by PrusaSlicer modifiers. Calibrate temperature and flow before a full insole. `}
+          : "Complete 3MF projects include an MK4S standard 0.4 mm printer, 0.20 mm print settings and this grade’s 250°C starting filament preset. Calibrate a small sample before a full insole. "}
         <a href="#/prusa">Setup & material guide ↗</a>
       </p>
       <p>
@@ -58,12 +56,6 @@ export default function MaterialSettings({
         Config Bundle, then select your actual printer and the matching presets.
         The separate download contains 240°C and 250°C starters.
       </p>
-      {thermal.interpolated && (
-        <p>
-          Starting flow is interpolated between Siraya’s temperature guide
-          points. Calibrate it for your spool.
-        </p>
-      )}
       <p className="sole-material-caution">
         For active foaming TPU Air only. Regular, non-foaming TPU needs its own
         temperature and flow calibration.

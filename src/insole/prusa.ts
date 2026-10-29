@@ -14,7 +14,7 @@ import {
   type MaterialGrade,
 } from "./materials";
 import { buildCompletePrintConfig } from "./printConfig";
-import { airTemperatureSettings, regionalTemperaturePlan } from "./temperature";
+import { airTemperatureSettings } from "./temperature";
 import printerProfileLicense from "./profiles/PrusaSlicer-AGPL-3.0.txt?raw";
 
 type Foot = "left" | "right";
@@ -29,8 +29,6 @@ export interface PrusaProjectOptions {
   profileMode?: PrusaProfileMode;
   /** Applied in complete projects, and recorded as a reminder in design exports. */
   materialGrade?: MaterialGrade;
-  /** Explicitly export infill at one temperature while retaining unapplied regional targets. */
-  regionalTemperatureMode?: "uniform" | "targets-only";
 }
 
 type ProjectPlacement =
@@ -109,7 +107,7 @@ function exportVolumes(
       geometry: buildInsoleGeometry(p, side, 160),
     },
     ...buildDensityModifiers(p, side).map((modifier) => ({
-      name: `${modifier.name} · ${modifier.infill}% · ${modifier.scope} · ${fillPattern(modifier.infill, modifier.pattern)} · target ${modifier.temperature}C (not applied)`,
+      name: `${modifier.name} · ${modifier.infill}% · ${modifier.scope} · ${fillPattern(modifier.infill, modifier.pattern)}`,
       geometry: modifier.geometry,
       modifier,
     })),
@@ -145,14 +143,6 @@ export function prusaProject(
     );
   }
   const p = clampParams(params);
-  if (
-    regionalTemperaturePlan(p).mixed &&
-    options.regionalTemperatureMode !== "targets-only"
-  ) {
-    throw new Error(
-      `PrusaSlicer modifiers cannot apply regional temperatures. This design has targets that differ from the whole-insole ${p.density.temperature}°C setting. Save the editable design, or explicitly export infill at one whole-insole temperature with regional targets saved as notes.`,
-    );
-  }
   const volumes = exportVolumes(p, side, name);
   try {
     // Only the printable solid determines fit. Modifiers intentionally extend
@@ -266,7 +256,7 @@ ${settings.join("\n")}
         ...(profileMode === "complete"
           ? {
               "Metadata/Slic3r_PE.config": strToU8(
-                buildCompletePrintConfig(materialGrade!, p.density.temperature),
+                buildCompletePrintConfig(materialGrade!),
               ),
               "Metadata/PrusaSlicer-AGPL-3.0.txt": strToU8(
                 printerProfileLicense,
@@ -327,14 +317,10 @@ function densityManifest(
     base: {
       fill_density: `${p.density.baseInfill}%`,
       fill_pattern: fillPattern(p.density.baseInfill, p.density.pattern),
-      temperature_target_c: p.density.temperature,
     },
-    temperaturePlan: {
-      ...regionalTemperaturePlan(p),
-      wholeInsoleTemperatureApplied: profileMode === "complete",
-      limitation:
-        "PrusaSlicer modifiers apply infill and pattern, not nozzle temperature. Regional temperatures are saved targets only. The complete project uses one whole-insole temperature with matched starting flow.",
-    },
+    print_temperature_c: 250,
+    temperature_scope: "whole-insole",
+    temperature_applied: profileMode === "complete",
     precedence:
       "Later modifiers override earlier ones in overlaps. Custom zones follow arch, heel, and pads.",
     containsPrinterOrFilamentProfile: profileMode === "complete",
@@ -347,21 +333,23 @@ function densityManifest(
             profileDownload: TPU_AIR_MATERIALS[materialGrade].profileFilename,
             source: TPU_AIR_MATERIALS[materialGrade].guideUrl,
             appliedToSlicer: profileMode === "complete",
-            ...airTemperatureSettings(materialGrade, p.density.temperature),
+            ...airTemperatureSettings(materialGrade),
           },
         }
       : {}),
     ...(placement ? { placement } : {}),
     modifiers: volumes.slice(1).map((volume, index) => {
-      const { geometry: _geometry, ...region } = volume.modifier!;
+      const {
+        geometry: _geometry,
+        temperature: _legacyTemperature,
+        ...region
+      } = volume.modifier!;
       return {
         ...region,
         file: modifierFilename(volume, index + 1),
         priority: index + 1,
         fill_density: `${region.infill}%`,
         fill_pattern: fillPattern(region.infill, region.pattern),
-        temperature_target_c: region.temperature,
-        temperature_applied: false,
         volume_type: "ParameterModifier",
       };
     }),
@@ -377,9 +365,7 @@ function instructions(
   profileMode: PrusaProfileMode = "design",
 ) {
   const manifest = densityManifest(p, side, volumes);
-  const thermal = materialGrade
-    ? airTemperatureSettings(materialGrade, p.density.temperature)
-    : null;
+  const thermal = materialGrade ? airTemperatureSettings(materialGrade) : null;
   const placementInstructions = placement
     ? placement.mode === "mk4s"
       ? `\nMK4 / MK4S BED PLACEMENT\nThis ${side} insole is rotated ${placement.rotationDegrees.toFixed(2)} degrees around Z and centered on the\n250 x 210 mm MK4/S bed, at 100% scale. Its printable footprint is\n${placement.size.width.toFixed(2)} x ${placement.size.depth.toFixed(2)} mm, with ${placement.clearance.toFixed(2)} mm minimum XY edge clearance\n(requested model-to-bed margin: ${placement.requiredClearance} mm).\nThe one parent build item carries the transformation; all density modifiers move with the solid.\nEach foot is fitted independently. The other foot is a separate project, not a second insole on this bed.\nKeep this whole-parent placement when opening the project. Brim, skirt, and purge features need\nadditional space: check your selected printer and sliced Preview before printing.\n${profileMode === "complete" ? "The complete project includes the MK4S standard 0.4 mm printer and selected TPU Air starting presets." : "The target is placement information only; no printer or filament preset is embedded."}\n`
@@ -390,18 +376,14 @@ function instructions(
 The insole is the one printable solid. All region meshes are NONPRINTING setting modifiers.
 Infill percentage is a slicer setting, not a measurement of material density, Shore hardness, or compression.
 ${placementInstructions}
-${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\n${profileMode === "complete" ? `The complete project applies one whole-insole temperature of ${thermal!.temperature} C and starting extrusion multiplier ${thermal!.multiplier}, alongside the MK4S standard 0.4 mm machine and 0.20 mm print presets.` : `This is a material reminder, not an applied filament preset. Import the matching ${TPU_AIR_MATERIALS[materialGrade].profileFilename} bundle and select your calibrated preset in PrusaSlicer.`}\n${thermal!.interpolated ? "Starting flow is interpolated between the manufacturer's grade-specific guide points." : "Starting flow is a midpoint of the manufacturer's grade-specific guide range."}\nReference starting extrusion multiplier ${thermal!.multiplier} at ${thermal!.temperature} C.\nLeave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nThe separate downloadable preset bundle still contains its named 240 C and 250 C starters.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
+${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\n${profileMode === "complete" ? `The complete project applies one whole-insole temperature of ${thermal!.temperature} C and starting extrusion multiplier ${thermal!.multiplier}, alongside the MK4S standard 0.4 mm machine and 0.20 mm print presets.` : `This is a material reminder, not an applied filament preset. Import the matching ${TPU_AIR_MATERIALS[materialGrade].profileFilename} bundle and select your calibrated preset in PrusaSlicer.`}\nStarting flow is a midpoint of the manufacturer's grade-specific guide range.\nReference starting extrusion multiplier ${thermal!.multiplier} at ${thermal!.temperature} C.\nLeave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nThe separate downloadable preset bundle still contains its named 240 C and 250 C starters.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
 
-TEMPERATURE TARGETS
-Whole-insole target: ${p.density.temperature} C (default 250 C).
-${profileMode === "complete" ? "The complete project applies this one temperature to the entire insole." : "This design-only export does not apply a filament temperature; select your calibrated profile."}
-Regional temperature targets are saved in the accompanying JSON only. PrusaSlicer 2.9.x
-modifier volumes cannot apply nozzle temperature or extrusion multiplier. Infill and
-pattern settings DO apply per region. No per-region temperature keys or temperature-changing
-G-code are included. Different temperature targets require a separate experimental printing
-workflow, not just opening this 3MF. Our sequential cylinder method does not transfer to a
-single connected insole. Do not assume saved regional targets will print at those temperatures.
-${manifest.modifiers.map((region) => `- ${region.name}: target ${region.temperature} C (not applied)`).join("\n")}
+PRINT TEMPERATURE
+250 C is the whole-insole starting temperature for complete MK4S projects,
+including the first layer and every subsequent layer. The selected Air85A/95A
+preset supplies its matching starting flow. Regional infill and pattern remain
+independent. There are no regional temperature changes or extra processing steps.
+${profileMode === "design" ? "This design-only export does not install a filament profile. Select your calibrated printer and filament presets in PrusaSlicer." : "Open as a project in PrusaSlicer to load the included 250 C filament settings."}
 
 PREFERRED: PRUSASLICER 2.9.x 3MF
 1. Use the separate PrusaSlicer 3MF download from Insole Studio and import/open it in PrusaSlicer 2.9.x.
