@@ -75,11 +75,82 @@ function boundsXY(points: number[][]) {
 
 describe("PrusaSlicer density exports", () => {
   it.each(["85a", "95a"] as const)(
+    "embeds the complete MK4S and %s setup without changing geometry or density overrides",
+    (materialGrade) => {
+      const p = sample();
+      const complete = unzipSync(
+        prusaProject(p, "left", "Complete project", { materialGrade }),
+      );
+      const design = unzipSync(
+        prusaProject(p, "left", "Complete project", {
+          materialGrade,
+          profileMode: "design",
+        }),
+      );
+      const config = strFromU8(complete["Metadata/Slic3r_PE.config"]);
+      expect(config).toContain("; printer_model = MK4S\n");
+      expect(config).toContain("; nozzle_diameter = 0.4\n");
+      expect(config).toContain("; nozzle_high_flow = 0\n");
+      expect(config).toContain("; bed_shape = 0x0,250x0,250x210,0x210\n");
+      expect(config).toContain("; temperature = 250\n");
+      expect(config).toContain("; bed_temperature = 40\n");
+      expect(config).toContain(
+        `; extrusion_multiplier = ${materialGrade === "85a" ? "0.675" : "0.65"}\n`,
+      );
+      expect(config).toContain(`Siraya TPU Air ${materialGrade.toUpperCase()}`);
+      expect(config).toContain("; start_gcode = M17");
+      expect(config).toContain("M862.1");
+      expect(config).toContain("M221 S100");
+      expect(config).toContain("; end_gcode = ");
+      expect(config).not.toMatch(
+        /\/Users\/|password=|https?:\/\/[^\s]+\.local/i,
+      );
+      expect(design["Metadata/Slic3r_PE.config"]).toBeUndefined();
+      expect(strFromU8(design["[Content_Types].xml"])).not.toContain(
+        'PartName="/Metadata/Slic3r_PE.config"',
+      );
+      expect(readVertices(strFromU8(complete["3D/3dmodel.model"]))).toEqual(
+        readVertices(strFromU8(design["3D/3dmodel.model"])),
+      );
+      expect(buildTransform(strFromU8(complete["3D/3dmodel.model"]))).toEqual(
+        buildTransform(strFromU8(design["3D/3dmodel.model"])),
+      );
+      expect(complete["Metadata/Slic3r_PE_model.config"]).toEqual(
+        design["Metadata/Slic3r_PE_model.config"],
+      );
+      const manifest = JSON.parse(
+        strFromU8(complete["Metadata/InsoleStudio-density.json"]),
+      );
+      expect(manifest.containsPrinterOrFilamentProfile).toBe(true);
+      expect(manifest.material).toMatchObject({
+        grade: materialGrade,
+        appliedToSlicer: true,
+      });
+      const notes = strFromU8(complete["Metadata/InsoleStudio-README.txt"]);
+      expect(notes).toContain("Choose Open as project");
+      expect(notes).toContain("standard 0.4 mm");
+      expect(notes).not.toContain("not an applied filament preset");
+    },
+  );
+
+  it("defaults to a complete project and cannot bypass its MK4S bed fit check", () => {
+    const p = cloneParams(DEFAULT_PARAMS);
+    const complete = unzipSync(prusaProject(p, "right"));
+    expect(complete["Metadata/Slic3r_PE.config"]).toBeDefined();
+    expect(() =>
+      prusaProject(p, "right", "Invalid placement", { placement: "original" }),
+    ).toThrow(/Complete MK4S projects require MK4S bed placement/);
+  });
+
+  it.each(["85a", "95a"] as const)(
     "keeps %s material notes with each export without applying a machine or filament preset",
     (materialGrade) => {
       const p = cloneParams(DEFAULT_PARAMS);
       const project = unzipSync(
-        prusaProject(p, "right", "Material test", { materialGrade }),
+        prusaProject(p, "right", "Material test", {
+          materialGrade,
+          profileMode: "design",
+        }),
       );
       const bundle = unzipSync(
         modifierBundle(p, "right", "Material test", { materialGrade }),
@@ -117,7 +188,9 @@ describe("PrusaSlicer density exports", () => {
   let config: string;
   beforeAll(() => {
     files = unzipSync(
-      prusaProject(sample(), "right", 'Test <fit> & "density"'),
+      prusaProject(sample(), "right", 'Test <fit> & "density"', {
+        profileMode: "design",
+      }),
     );
     model = strFromU8(files["3D/3dmodel.model"]);
     config = strFromU8(files["Metadata/Slic3r_PE_model.config"]);
@@ -277,7 +350,10 @@ describe("PrusaSlicer density exports", () => {
         // to the common parent instance, so no modifier can rotate separately.
         const original = strFromU8(
           unzipSync(
-            prusaProject(p, side, "Insole Studio", { placement: "original" }),
+            prusaProject(p, side, "Insole Studio", {
+              placement: "original",
+              profileMode: "design",
+            }),
           )["3D/3dmodel.model"],
         );
         expect(vertices).toEqual(readVertices(original));
@@ -322,7 +398,7 @@ describe("PrusaSlicer density exports", () => {
           expected.rotationDegrees,
         );
         expect(manifest.placement.bounds).toEqual(expected.bounds);
-        expect(manifest.containsPrinterOrFilamentProfile).toBe(false);
+        expect(manifest.containsPrinterOrFilamentProfile).toBe(true);
         const readme = strFromU8(files["Metadata/InsoleStudio-README.txt"]);
         expect(readme).toContain("250 x 210 mm MK4/S bed, at 100% scale");
         expect(readme).toContain("Each foot is fitted independently");
@@ -375,7 +451,10 @@ describe("PrusaSlicer density exports", () => {
       prusaProject(p, "left", "Large foot", { placement: "mk4s" }),
     ).toThrow(/original coordinates.*never shrinks/);
     const exported = unzipSync(
-      prusaProject(p, "right", "Large foot", { placement: "original" }),
+      prusaProject(p, "right", "Large foot", {
+        placement: "original",
+        profileMode: "design",
+      }),
     );
     expect(strFromU8(exported["3D/3dmodel.model"])).toContain(
       '<build><item objectid="1" printable="1"/></build>',

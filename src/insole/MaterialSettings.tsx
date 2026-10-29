@@ -9,10 +9,12 @@ export default function MaterialSettings({
   grade,
   onChange,
   id,
+  exportMode,
 }: {
   grade: MaterialGrade;
   onChange: (grade: MaterialGrade) => void;
   id: string;
+  exportMode?: "complete" | "design";
 }) {
   const material = TPU_AIR_MATERIALS[grade];
   return (
@@ -42,11 +44,14 @@ export default function MaterialSettings({
         <ArrowDownToLine size={15} /> Download {grade.toUpperCase()} presets
       </a>
       <p>
-        Import with File → Import → Import Config Bundle. Select your actual MK4
-        Input Shaper / MK4S 0.4 mm printer and the matching Air filament preset
-        in PrusaSlicer. The 3MF remembers this choice as a note; it carries
-        shape and infill settings.{" "}
+        {exportMode === "design"
+          ? "This export records the material as a note. Select your own calibrated printer, print and filament presets in PrusaSlicer. "
+          : "Complete 3MF projects include an MK4S standard 0.4 mm printer, 0.20 mm print settings and this grade’s 250°C foam starting preset. Calibrate temperature and flow before a full insole. "}
         <a href="#/prusa">Setup & material guide ↗</a>
+      </p>
+      <p>
+        To install the separate preset download, use File → Import → Import
+        Config Bundle, then select your actual printer and the matching presets.
       </p>
       <p className="sole-material-caution">
         For active foaming TPU Air only. Regular, non-foaming TPU needs its own

@@ -8,16 +8,24 @@ import {
   type InsoleParams,
 } from "./model";
 import { MK4S_BED, planBedPlacement, type PlacementMode } from "./placement";
-import { TPU_AIR_MATERIALS, type MaterialGrade } from "./materials";
+import {
+  DEFAULT_MATERIAL_GRADE,
+  TPU_AIR_MATERIALS,
+  type MaterialGrade,
+} from "./materials";
+import { buildCompletePrintConfig } from "./printConfig";
 
 type Foot = "left" | "right";
+export type PrusaProfileMode = "complete" | "design";
 
 export interface PrusaProjectOptions {
   /** Rotate and center the complete insole on an MK4/S bed at its original size. */
   placement?: PlacementMode;
   /** Requested XY model-to-bed margin, from 0 to 10 mm. Default: 3 mm. */
   clearance?: number;
-  /** Material reminder only. Machine and filament presets stay in the slicer. */
+  /** Complete MK4S project by default; design mode omits global slicer presets. */
+  profileMode?: PrusaProfileMode;
+  /** Applied in complete projects, and recorded as a reminder in design exports. */
   materialGrade?: MaterialGrade;
 }
 
@@ -109,13 +117,13 @@ function disposeVolumes(volumes: ExportVolume[]) {
 }
 
 /**
- * A design 3MF with PrusaSlicer 2.9.x volume metadata. Each modifier is a
+ * A 3MF with PrusaSlicer 2.9.x volume metadata. Each modifier is a
  * nonprinting ParameterModifier, rather than an extra printable part.
  *
  * Format: PrusaSlicer src/libslic3r/Format/3mf.cpp (_add_model_config_file_to_archive).
  * Its PrintApply.cpp chains modifiers in stored order: the last override wins.
- * No full print configuration is embedded, so printer, filament, shell, and
- * temperature choices remain with the user's existing slicer profile.
+ * Complete mode includes a resolved MK4S standard 0.4 mm configuration.
+ * Design mode contains only the solid and local infill settings.
  */
 export function prusaProject(
   params: InsoleParams,
@@ -123,6 +131,15 @@ export function prusaProject(
   name = "Insole Studio",
   options: PrusaProjectOptions = {},
 ): Uint8Array {
+  const profileMode = options.profileMode ?? "complete";
+  const materialGrade =
+    options.materialGrade ??
+    (profileMode === "complete" ? DEFAULT_MATERIAL_GRADE : undefined);
+  if (profileMode === "complete" && options.placement === "original") {
+    throw new Error(
+      "Complete MK4S projects require MK4S bed placement. Choose design only to use original coordinates with your own printer presets.",
+    );
+  }
   const p = clampParams(params);
   const volumes = exportVolumes(p, side, name);
   try {
@@ -207,7 +224,7 @@ export function prusaProject(
 <metadata name="Application">PrusaSlicer-${PRUSA_3MF_COMPATIBILITY_VERSION}</metadata>
 <metadata name="Designer">Insole Studio</metadata>
 <metadata name="Title">${xml(`${name} · ${side} insole`)}</metadata>
-<metadata name="Description">Insole Studio density design. PrusaSlicer 2.9.x modifier metadata; select your own printer and calibrated filament profile.</metadata>
+<metadata name="Description">${profileMode === "complete" ? "Insole Studio complete MK4S standard 0.4 mm project with TPU Air starting settings." : "Insole Studio density design; select your own printer and calibrated filament profile."}</metadata>
 <resources><object id="1" type="model"><mesh>
 <vertices>${vertices.join("\n")}</vertices>
 <triangles>${triangles.join("\n")}</triangles>
@@ -223,19 +240,40 @@ ${settings.join("\n")}
 </object></config>`;
     return zipSync(
       {
-        "[Content_Types].xml": strToU8(CONTENT_TYPES),
+        "[Content_Types].xml": strToU8(
+          profileMode === "complete"
+            ? CONTENT_TYPES.replace(
+                "</Types>",
+                '<Override PartName="/Metadata/Slic3r_PE.config" ContentType="text/plain"/>\n</Types>',
+              )
+            : CONTENT_TYPES,
+        ),
         "_rels/.rels": strToU8(RELATIONSHIPS),
         "3D/3dmodel.model": strToU8(model),
         "Metadata/Slic3r_PE_model.config": strToU8(config),
+        ...(profileMode === "complete"
+          ? {
+              "Metadata/Slic3r_PE.config": strToU8(
+                buildCompletePrintConfig(materialGrade!),
+              ),
+            }
+          : {}),
         "Metadata/InsoleStudio-density.json": strToU8(
           JSON.stringify(
-            densityManifest(p, side, volumes, placement, options.materialGrade),
+            densityManifest(
+              p,
+              side,
+              volumes,
+              placement,
+              materialGrade,
+              profileMode,
+            ),
             null,
             2,
           ),
         ),
         "Metadata/InsoleStudio-README.txt": strToU8(
-          instructions(p, side, volumes, placement, options.materialGrade),
+          instructions(p, side, volumes, placement, materialGrade, profileMode),
         ),
       },
       { level: 6 },
@@ -264,6 +302,7 @@ function densityManifest(
   volumes: ExportVolume[],
   placement?: ProjectPlacement,
   materialGrade?: MaterialGrade,
+  profileMode: PrusaProfileMode = "design",
 ) {
   return {
     format: "insole-studio-density-v1",
@@ -276,7 +315,8 @@ function densityManifest(
     },
     precedence:
       "Later modifiers override earlier ones in overlaps. Custom zones follow arch, heel, and pads.",
-    containsPrinterOrFilamentProfile: false,
+    containsPrinterOrFilamentProfile: profileMode === "complete",
+    profileMode,
     ...(materialGrade
       ? {
           material: {
@@ -284,7 +324,7 @@ function densityManifest(
             name: TPU_AIR_MATERIALS[materialGrade].label,
             profileDownload: TPU_AIR_MATERIALS[materialGrade].profileFilename,
             source: TPU_AIR_MATERIALS[materialGrade].guideUrl,
-            appliedToSlicer: false,
+            appliedToSlicer: profileMode === "complete",
           },
         }
       : {}),
@@ -309,11 +349,12 @@ function instructions(
   volumes: ExportVolume[],
   placement?: ProjectPlacement,
   materialGrade?: MaterialGrade,
+  profileMode: PrusaProfileMode = "design",
 ) {
   const manifest = densityManifest(p, side, volumes);
   const placementInstructions = placement
     ? placement.mode === "mk4s"
-      ? `\nMK4 / MK4S BED PLACEMENT\nThis ${side} insole is rotated ${placement.rotationDegrees.toFixed(2)} degrees around Z and centered on the\n250 x 210 mm MK4/S bed, at 100% scale. Its printable footprint is\n${placement.size.width.toFixed(2)} x ${placement.size.depth.toFixed(2)} mm, with ${placement.clearance.toFixed(2)} mm minimum XY edge clearance\n(requested model-to-bed margin: ${placement.requiredClearance} mm).\nThe one parent build item carries the transformation; all density modifiers move with the solid.\nEach foot is fitted independently. The other foot is a separate project, not a second insole on this bed.\nKeep this whole-parent placement when opening the project. Brim, skirt, and purge features need\nadditional space: check your selected printer and sliced Preview before printing.\nThe target is placement information only; no printer or filament preset is embedded.\n`
+      ? `\nMK4 / MK4S BED PLACEMENT\nThis ${side} insole is rotated ${placement.rotationDegrees.toFixed(2)} degrees around Z and centered on the\n250 x 210 mm MK4/S bed, at 100% scale. Its printable footprint is\n${placement.size.width.toFixed(2)} x ${placement.size.depth.toFixed(2)} mm, with ${placement.clearance.toFixed(2)} mm minimum XY edge clearance\n(requested model-to-bed margin: ${placement.requiredClearance} mm).\nThe one parent build item carries the transformation; all density modifiers move with the solid.\nEach foot is fitted independently. The other foot is a separate project, not a second insole on this bed.\nKeep this whole-parent placement when opening the project. Brim, skirt, and purge features need\nadditional space: check your selected printer and sliced Preview before printing.\n${profileMode === "complete" ? "The complete project includes the MK4S standard 0.4 mm printer and selected TPU Air starting presets." : "The target is placement information only; no printer or filament preset is embedded."}\n`
       : `\nORIGINAL COORDINATES\nThis ${side} insole retains its original design coordinates at 100% scale. No bed placement is applied.\nRotate and position the whole parent insole on your selected printer bed; its density modifiers\nmust move with it. Each foot is a separate project.\n`
     : "";
   return `INSOLE STUDIO — ${side.toUpperCase()} INSOLE DENSITY DESIGN
@@ -321,12 +362,11 @@ function instructions(
 The insole is the one printable solid. All region meshes are NONPRINTING setting modifiers.
 Infill percentage is a slicer setting, not a measurement of material density, Shore hardness, or compression.
 ${placementInstructions}
-${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\nThis is a material reminder, not an applied filament preset. Import the matching\n${TPU_AIR_MATERIALS[materialGrade].profileFilename} configuration bundle from Insole Studio's Prusa guide.\nSelect the correct grade and calibrated temperature/flow pair in PrusaSlicer before slicing.\nA 250 C calibration start uses extrusion multiplier ${TPU_AIR_MATERIALS[materialGrade].foamMultiplier};\nleave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
+${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\n${profileMode === "complete" ? "The complete project applies this grade's 250 C foam starting preset, alongside the MK4S standard 0.4 mm machine and 0.20 mm print presets." : `This is a material reminder, not an applied filament preset. Import the matching ${TPU_AIR_MATERIALS[materialGrade].profileFilename} bundle and select your calibrated preset in PrusaSlicer.`}\nA 250 C calibration start uses extrusion multiplier ${TPU_AIR_MATERIALS[materialGrade].foamMultiplier};\nleave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
 
 PREFERRED: PRUSASLICER 2.9.x 3MF
 1. Use the separate PrusaSlicer 3MF download from Insole Studio and import/open it in PrusaSlicer 2.9.x.
-2. This design file contains per-object/region infill overrides, without a printer or filament preset.
-   Keep/select your own printer and calibrated Siraya Tech Flex TPU Air filament profile.
+2. ${profileMode === "complete" ? "Choose Open as project to load the included MK4S standard 0.4 mm printer, selected TPU Air filament, and 0.20 mm print settings. Loading geometry only skips those presets. Verify that your physical nozzle is the standard 0.4 mm type and inspect Preview before printing." : "This design file contains per-object/region infill overrides, without a printer or filament preset. Keep/select your own printer and calibrated Siraya Tech Flex TPU Air filament profile."}
 3. Switch to Expert mode and expand the insole in the right-hand Object list. It should contain
    one model part followed by setting modifiers. Select a modifier to see its translucent volume
    on the bed; expand the modifier and select its Infill child row to inspect Fill density and Fill pattern.
@@ -355,7 +395,7 @@ WHAT IS AND IS NOT CONTROLLED
 - Perimeters and top/bottom solid layers remain controlled by your slicer profile. Thin areas may
   contain only solid skin, so lower sparse infill may have little effect there. Inspect Preview.
 - Infill boundaries are discrete. The modifier regions do not blend densities continuously.
-- No printer, temperatures, extrusion multiplier, foaming ratio, speeds, or G-code are supplied.
+- ${profileMode === "complete" ? "The included printer, temperature, extrusion multiplier, speeds and shell settings are calibration starting values. No sliced G-code is supplied; slice and inspect the result in PrusaSlicer. Save a new project after making calibration changes." : "No printer, temperatures, extrusion multiplier, foaming ratio, speeds, or G-code are supplied."}
   Calibrate the active foaming material on your printer before comparing physical softness.
 
 Official modifier workflow: https://help.prusa3d.com/article/modifiers_1767

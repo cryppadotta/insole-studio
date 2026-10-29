@@ -375,18 +375,23 @@ export default function PrusaGuide() {
                 <p>
                   In the studio, enable any local overrides in{" "}
                   <b>Tune the cushion</b>, choose <b>Export 3MF</b>, keep{" "}
-                  <b>PrusaSlicer 3MF</b> selected, and use the default{" "}
-                  <b>Prusa MK4 / MK4S · 250 × 210 mm</b> bed placement. Download
-                  one foot, or both feet as two files for separate plates.
+                  <b>PrusaSlicer 3MF</b> and the default{" "}
+                  <b>Complete MK4S project</b> selected. Choose the Air grade on
+                  your spool. The project includes an MK4S standard 0.4 mm
+                  printer, 0.20 mm print settings and the grade’s 250°C foam
+                  starting filament preset. Download one foot, or both feet as
+                  two files for separate plates.
                 </p>
               </li>
               <li>
                 <strong>Open it in PrusaSlicer.</strong>
                 <p>
                   Use <b>File → Open Project</b> to open the downloaded{" "}
-                  <code>.3mf</code>. Keep its object and modifier settings. This
-                  is a design export: select your own printer, filament and
-                  print presets in the right sidebar.
+                  <code>.3mf</code> and load the project settings. The right
+                  sidebar should show the MK4S standard 0.4 mm printer and
+                  Insole Studio print and matching Air filament presets. Check
+                  the nozzle matches your machine. Importing only geometry
+                  leaves the project’s presets behind.
                 </p>
               </li>
               <li>
@@ -395,25 +400,26 @@ export default function PrusaGuide() {
                   Each foot arrives rotated and centered at <b>100% scale</b>,
                   with <b>3 mm bed edge clearance by default</b>. Adjust{" "}
                   <b>Bed edge clearance</b> from 0–10 mm for your fit. Its
-                  modifiers move with it. Select your actual printer in
-                  PrusaSlicer and check the bed outline, including any skirt or
-                  brim, before slicing. The export’s bed choice controls
-                  placement; it does not select your printer or filament
-                  presets.
+                  modifiers move with it. The complete project includes the 250
+                  × 210 mm MK4S bed. Check the bed outline, including any skirt
+                  or brim, before slicing.
                 </p>
               </li>
               <li>
                 <strong>Slice, inspect, then save the project.</strong>
                 <p>
-                  Check the internal toolpaths before exporting G-code. Save a
-                  PrusaSlicer project after selecting your printer and material
-                  so those choices travel with your next session.
+                  Check the internal toolpaths before exporting G-code. The
+                  included filament and print presets are calibration starting
+                  points: test temperature and flow on a small sample, then save
+                  a PrusaSlicer project with your tuned settings.
                 </p>
               </li>
             </ol>
             <p className="prusa-fine-print">
-              Using another bed? Choose{" "}
-              <b>Original coordinates · manual placement</b> at export and
+              Using your own presets or another printer? Choose{" "}
+              <b>Design only · use my presets</b>. This mode carries shape and
+              local infill, with the material recorded as a note. For another
+              bed, choose <b>Original coordinates · manual placement</b> and
               position the whole parent insole manually in PrusaSlicer so its
               modifiers stay aligned. Automatic placement blocks an insole that
               cannot fit with your chosen clearance; it never shrinks your
@@ -777,9 +783,11 @@ export default function PrusaGuide() {
               </p>
               <p>
                 Choose the printer and nozzle variant that matches the actual
-                machine, including standard or high-flow nozzle. Choosing an
-                MK4S bed in the design editor only changes model placement; it
-                does not select or configure a printer in PrusaSlicer.
+                machine, including standard or high-flow nozzle. The separate
+                downloads above keep your printer preset. The studio’s default
+                <b> Complete MK4S project</b> instead embeds an MK4S standard
+                0.4 mm printer and the selected grade’s 250°C foam preset.
+                Choose <b>Design only</b> at export to keep your own presets.
               </p>
             </div>
             <ol className="prusa-steps prusa-import-profiles">

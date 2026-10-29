@@ -725,6 +725,23 @@ describe("private studio preferences", () => {
     }
   });
 
+  it("remembers a validated complete or design export mode only in local storage", () => {
+    const storage = memoryStorage();
+    const mockDocument = { cookie: "" };
+    vi.stubGlobal("localStorage", storage);
+    vi.stubGlobal("document", mockDocument);
+    for (const exportProfileMode of ["complete", "design"] as const) {
+      saveStudioPreferences({ exportProfileMode });
+      expect(readStudioPreferences()).toEqual({ exportProfileMode });
+      expect(mockDocument.cookie).not.toContain("exportProfileMode");
+    }
+    storage.entries.set(
+      PREFERENCES_STORAGE_KEY,
+      JSON.stringify({ exportProfileMode: "unknown" }),
+    );
+    expect(readStudioPreferences()).toEqual({});
+  });
+
   it("ignores malformed storage and cookies without disrupting editing", () => {
     const storage = memoryStorage();
     storage.entries.set(PREFERENCES_STORAGE_KEY, "{broken");

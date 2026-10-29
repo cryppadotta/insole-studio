@@ -233,6 +233,11 @@ export default function InsoleApp() {
   const [exportPlacement, setExportPlacement] = useState<PlacementMode>(
     preferences.exportPlacement ?? "mk4s",
   );
+  const [exportProfileMode, setExportProfileMode] = useState<
+    "complete" | "design"
+  >(preferences.exportProfileMode ?? "complete");
+  const effectiveExportPlacement =
+    exportProfileMode === "complete" ? "mk4s" : exportPlacement;
   const [bedClearance, setBedClearance] = useState(
     preferences.bedClearance ?? 3,
   );
@@ -313,6 +318,7 @@ export default function InsoleApp() {
       sizeValue,
       selectedDensityZoneId: selectedDensityZone?.id ?? "",
       exportPlacement,
+      exportProfileMode,
       bedClearance,
       materialGrade,
     });
@@ -325,6 +331,7 @@ export default function InsoleApp() {
     sizeValue,
     selectedDensityZone?.id,
     exportPlacement,
+    exportProfileMode,
     bedClearance,
     materialGrade,
   ]);
@@ -439,7 +446,7 @@ export default function InsoleApp() {
     if (
       modal !== "export" ||
       exportFormat !== "3mf" ||
-      exportPlacement !== "mk4s"
+      effectiveExportPlacement !== "mk4s"
     )
       return [];
     const sides: Foot[] = exportSide === "pair" ? ["left", "right"] : [side];
@@ -454,7 +461,7 @@ export default function InsoleApp() {
   }, [
     modal,
     exportFormat,
-    exportPlacement,
+    effectiveExportPlacement,
     exportSide,
     side,
     history.present,
@@ -466,7 +473,7 @@ export default function InsoleApp() {
       .filter(({ placement }) => !placement.fits)
       .map(
         ({ foot, placement }) =>
-          `${foot === "right" ? "Right" : "Left"} footprint cannot fit the ${MK4S_BED.width} × ${MK4S_BED.depth} mm bed with ${bedClearance} mm edge clearance at full scale (${placement.size.width.toFixed(1)} × ${placement.size.depth.toFixed(1)} mm at its best angle). Lower the clearance, adjust the dimensions, or choose Original coordinates for another bed.`,
+          `${foot === "right" ? "Right" : "Left"} footprint cannot fit the ${MK4S_BED.width} × ${MK4S_BED.depth} mm bed with ${bedClearance} mm edge clearance at full scale (${placement.size.width.toFixed(1)} × ${placement.size.depth.toFixed(1)} mm at its best angle). Lower the clearance or adjust the dimensions. For another printer, choose Design only and Original coordinates.`,
       ),
   ];
   const saveProject = () => {
@@ -524,16 +531,21 @@ export default function InsoleApp() {
             const bytes =
               exportFormat === "3mf"
                 ? prusaProject(history.present[foot], foot, project.name, {
-                    placement: exportPlacement,
+                    placement: effectiveExportPlacement,
                     clearance: bedClearance,
                     materialGrade,
+                    profileMode: exportProfileMode,
                   })
                 : modifierBundle(history.present[foot], foot, project.name, {
                     materialGrade,
                   });
             downloadFile(
               new Uint8Array(bytes).buffer,
-              `${name}-${foot}-${exportFormat === "3mf" ? "density.3mf" : "modifiers.zip"}`,
+              exportFormat === "3mf"
+                ? exportProfileMode === "complete"
+                  ? `${name}-${foot}-MK4S-Air${materialGrade.toUpperCase()}-complete.3mf`
+                  : `${name}-${foot}-density.3mf`
+                : `${name}-${foot}-modifiers.zip`,
               exportFormat === "3mf" ? "model/3mf" : "application/zip",
             );
           }
@@ -542,7 +554,9 @@ export default function InsoleApp() {
           exportFormat === "stl"
             ? "STL geometry exported. Infill settings require the 3MF export."
             : exportFormat === "3mf"
-              ? "3MF exported with local infill modifiers. Open in PrusaSlicer and choose your calibrated printer/filament profiles."
+              ? exportProfileMode === "complete"
+                ? "Complete MK4S project exported with printer, print, filament and local infill settings. Open as a project in PrusaSlicer."
+                : "Design 3MF exported with local infill modifiers. Choose your calibrated printer, print and filament presets in PrusaSlicer."
               : "Modifier bundle exported with instructions and matching coordinates.",
         );
         setModal(null);
@@ -930,8 +944,9 @@ export default function InsoleApp() {
                 </button>
                 <p className="sole-print-note">
                   Print the outline on paper first to check the shoe fit. Open
-                  the 3MF to retain local infill. Choose your calibrated
-                  material, printer, shell and layer settings in PrusaSlicer.
+                  the complete 3MF project to retain local infill and include
+                  MK4S standard 0.4 mm starting presets. Check and calibrate
+                  them in PrusaSlicer.
                 </p>
                 <p className="sole-print-note">
                   This is an editable design prototype. The dimensions and
@@ -1338,7 +1353,7 @@ export default function InsoleApp() {
           >
             {(
               [
-                ["3mf", "PrusaSlicer 3MF", "Shape + local infill"],
+                ["3mf", "PrusaSlicer 3MF", "Shape + settings"],
                 ["stl", "STL only", "Shape; no infill data"],
                 ["bundle", "Modifier ZIP", "Manual import fallback"],
               ] as const
@@ -1382,11 +1397,41 @@ export default function InsoleApp() {
               </span>
             </label>
           </div>
-          <MaterialSettings
-            id="insole-export-material"
-            grade={materialGrade}
-            onChange={setMaterialGrade}
-          />
+          {exportFormat === "3mf" && (
+            <section
+              className="sole-bed-placement"
+              aria-label="Project settings"
+            >
+              <label htmlFor="insole-export-profile">Project settings</label>
+              <select
+                id="insole-export-profile"
+                value={exportProfileMode}
+                onChange={(event) =>
+                  setExportProfileMode(
+                    event.target.value as "complete" | "design",
+                  )
+                }
+              >
+                <option value="complete">
+                  Complete MK4S project · recommended
+                </option>
+                <option value="design">Design only · use my presets</option>
+              </select>
+              <p>
+                {exportProfileMode === "complete"
+                  ? "Includes the MK4S standard 0.4 mm nozzle, 250 × 210 mm bed, 0.20 mm layers, 2 perimeters, 0.6 mm top/bottom shells and the selected Air grade’s starting filament preset. These are calibration starting points."
+                  : "Includes the shape and local infill overrides. Keep your own printer, print and filament presets in PrusaSlicer."}
+              </p>
+            </section>
+          )}
+          {exportFormat !== "stl" && (
+            <MaterialSettings
+              id="insole-export-material"
+              grade={materialGrade}
+              onChange={setMaterialGrade}
+              exportMode={exportFormat === "3mf" ? exportProfileMode : "design"}
+            />
+          )}
           {exportFormat === "3mf" && (
             <section
               className="sole-bed-placement"
@@ -1397,7 +1442,8 @@ export default function InsoleApp() {
               </label>
               <select
                 id="insole-export-placement"
-                value={exportPlacement}
+                value={effectiveExportPlacement}
+                disabled={exportProfileMode === "complete"}
                 onChange={(event) =>
                   setExportPlacement(event.target.value as PlacementMode)
                 }
@@ -1407,7 +1453,7 @@ export default function InsoleApp() {
                   Original coordinates · manual placement
                 </option>
               </select>
-              {exportPlacement === "mk4s" ? (
+              {effectiveExportPlacement === "mk4s" ? (
                 <>
                   <Measure
                     label="Bed edge clearance"
@@ -1467,7 +1513,9 @@ export default function InsoleApp() {
             {exportFormat === "stl"
               ? "STL includes geometry only and discards the density regions. Use 3MF to carry your infill settings."
               : exportFormat === "3mf"
-                ? "Open this 3MF in PrusaSlicer. It contains one printable solid and non-printing parameter modifiers, plus object infill settings. Your printer, filament, shell and layer profiles remain yours to choose."
+                ? exportProfileMode === "complete"
+                  ? "Use File → Open Project in PrusaSlicer and load the project settings. This 3MF includes the printer, print and filament presets alongside the solid and non-printing infill modifiers. Check the standard 0.4 mm nozzle matches your machine, inspect the slice and calibrate a sample."
+                  : "Open this design 3MF with its object and modifier settings. It contains the solid and non-printing infill modifiers; select your own printer, print and filament presets."
                 : "Load the solid STL first, then add each region STL as a modifier (not a separate printed part). The ZIP includes exact settings and import instructions."}
             {exportFormat !== "stl" && (
               <span className="sole-export-region-summary">

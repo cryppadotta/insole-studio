@@ -43,6 +43,7 @@ export interface StudioPreferences {
   step?: "shape" | "support" | "density" | "print";
   feature?: "outline" | "arch" | "heel" | "met" | "base";
   exportPlacement?: "mk4s" | "original";
+  exportProfileMode?: "complete" | "design";
   bedClearance?: number;
   selectedPadId?: string;
   selectedDensityZoneId?: string;
@@ -483,6 +484,11 @@ function cleanPreferences(value: unknown): StudioPreferences {
     preferences.feature = value.feature;
   if (value.exportPlacement === "mk4s" || value.exportPlacement === "original")
     preferences.exportPlacement = value.exportPlacement;
+  if (
+    value.exportProfileMode === "complete" ||
+    value.exportProfileMode === "design"
+  )
+    preferences.exportProfileMode = value.exportProfileMode;
   if (validNumber(value.bedClearance, [0, 10]))
     preferences.bedClearance = value.bedClearance as number;
   if (isMaterialGrade(value.materialGrade))
