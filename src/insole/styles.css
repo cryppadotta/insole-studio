@@ -2107,6 +2107,22 @@
   border-color: #b8cda6;
   background: #edf4e2;
 }
+.sole-pad-row.sole-negative-pad {
+  border-color: #cfdee6;
+  background: #f1f7fa;
+}
+.sole-pad-row.sole-negative-pad.active {
+  border-color: #8fb8cc;
+  background: #e5f1f7;
+}
+.sole-pad-row.sole-negative-pad strong,
+.sole-pad-row.sole-negative-pad small,
+.sole-pad-row.sole-negative-pad > button > span {
+  color: #42738b;
+}
+.sole-pad-row.sole-negative-pad > input {
+  accent-color: #427d9a;
+}
 .sole-pad-row > button {
   display: flex;
   flex: 1;
@@ -2146,6 +2162,17 @@
   border-color: #c9d9b8;
   color: #64814e;
   font-size: 10px;
+}
+.sole-add-pad + .sole-add-pad {
+  margin-top: 6px;
+}
+.insole-app .sole-add-pad.sole-negative-pad {
+  background: #edf5f9;
+  border-color: #b4cfdd;
+  color: #3c718a;
+}
+.sole-pad-operation {
+  margin-bottom: 16px;
 }
 .sole-pad-editor-heading {
   display: flex;

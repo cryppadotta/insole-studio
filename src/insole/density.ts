@@ -262,7 +262,11 @@ export function getDensityRegions(p: InsoleParams): DensityRegion[] {
     p.archHeight +
     p.heelCupHeight +
     p.toeSpring +
-    p.pads.reduce((sum, pad) => sum + (pad.enabled ? pad.height : 0), 0) +
+    p.pads.reduce(
+      (sum, pad) =>
+        sum + (pad.enabled && pad.operation !== "subtract" ? pad.height : 0),
+      0,
+    ) +
     1;
   const regions: DensityRegion[] = [];
   const add = (
@@ -307,6 +311,9 @@ export function getDensityRegions(p: InsoleParams): DensityRegion[] {
     density.heel,
   );
   for (const pad of p.pads) {
+    // Cutters remove geometry. They never request a material override, even
+    // when an older editing state still has a density entry for their id.
+    if (pad.operation === "subtract") continue;
     add(
       {
         id: `density-pad-${pad.id}`,

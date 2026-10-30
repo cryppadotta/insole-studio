@@ -11,6 +11,9 @@ export interface MetPad {
   id: string;
   name: string;
   enabled: boolean;
+  /** Missing on older projects means add; subtract makes a local relief cut. */
+  operation?: "add" | "subtract";
+  /** Support height or, for subtraction, depth below the completed top surface. */
   height: number;
   position: number;
   /** Canonical right-foot x coordinate: negative is medial. */
@@ -51,7 +54,13 @@ export interface InsoleParams {
 }
 
 export type NumericParamKey = Exclude<keyof InsoleParams, "pads" | "density">;
-export type NumericPadKey = Exclude<keyof MetPad, "id" | "name" | "enabled">;
+export type NumericPadKey = Exclude<
+  keyof MetPad,
+  "id" | "name" | "enabled" | "operation"
+>;
+
+/** A relief may thin the base, but always leaves a closed printable floor. */
+export const MIN_INSOLE_THICKNESS = 0.8;
 
 export const NUMERIC_PARAM_KEYS: readonly NumericParamKey[] = [
   "length",
@@ -76,6 +85,7 @@ export const NUMERIC_PARAM_KEYS: readonly NumericParamKey[] = [
 
 const DEFAULT_PAD: Omit<MetPad, "id" | "name"> = {
   enabled: true,
+  operation: "add",
   height: 3,
   position: 0.66,
   offset: -3,
@@ -97,6 +107,17 @@ export function makePad(index = 0): MetPad {
       ? globalThis.crypto.randomUUID()
       : `met-pad-${Date.now().toString(36)}-${++padSequence}`;
   return { ...DEFAULT_PAD, id, name: `Met pad ${ordinal + 1}` };
+}
+
+/** A movable relief using the same smooth footprint and slope controls. */
+export function makeNegativePad(index = 0): MetPad {
+  const ordinal = Number.isFinite(index) ? Math.max(0, Math.floor(index)) : 0;
+  return {
+    ...makePad(ordinal),
+    name: `Negative pad ${ordinal + 1}`,
+    operation: "subtract",
+    height: 2,
+  };
 }
 
 export const DEFAULT_PARAMS: InsoleParams = {
@@ -129,7 +150,7 @@ export const PARAM_LIMITS: Record<NumericParamKey, readonly [number, number]> =
     heelWidth: [20, 150],
     archWidth: [15, 170],
     toeShape: [0, 1],
-    baseThickness: [0.8, 20],
+    baseThickness: [MIN_INSOLE_THICKNESS, 20],
     archHeight: [0, 70],
     archPosition: [0.05, 0.95],
     archLength: [20, 350],
@@ -207,6 +228,7 @@ export function clampParams(input: Partial<InsoleParams>): InsoleParams {
             : fallback.name,
         enabled:
           typeof supplied.enabled === "boolean" ? supplied.enabled : true,
+        operation: supplied.operation === "subtract" ? "subtract" : "add",
       };
       for (const key of Object.keys(PAD_LIMITS) as NumericPadKey[]) {
         const value = supplied[key];
@@ -224,7 +246,9 @@ export function clampParams(input: Partial<InsoleParams>): InsoleParams {
   }
   result.density = clampDensity(
     input.density,
-    result.pads.map((pad) => pad.id),
+    result.pads
+      .filter((pad) => pad.operation !== "subtract")
+      .map((pad) => pad.id),
   );
   return result;
 }
@@ -366,36 +390,41 @@ function height(p: InsoleParams, x: number, y: number) {
   const cup = p.heelCupHeight * (1 - (1 - rearRim) * (1 - sideRim));
   // Arch and pads share a height datum above the structural base. Take their
   // upper envelope so intersections and duplicate pads never stack height.
-  const support = p.pads.reduce(
-    (highest, pad) =>
-      pad.enabled
-        ? Math.max(
-            highest,
-            pad.height *
-              supportProfile(
-                supportRadius(
-                  x,
-                  y,
-                  pad.offset,
-                  pad.position * p.length,
-                  pad.width,
-                  pad.length,
-                  pad.rotation,
-                ),
-                pad.plateau,
-                pad.curve1,
-                pad.curve2,
-              ),
-          )
-        : highest,
-    arch,
-  );
+  let support = arch;
+  let cutDepth = 0;
+  for (const pad of p.pads) {
+    if (!pad.enabled) continue;
+    const contribution =
+      pad.height *
+      supportProfile(
+        supportRadius(
+          x,
+          y,
+          pad.offset,
+          pad.position * p.length,
+          pad.width,
+          pad.length,
+          pad.rotation,
+        ),
+        pad.plateau,
+        pad.curve1,
+        pad.curve2,
+      );
+    if (pad.operation === "subtract")
+      cutDepth = Math.max(cutDepth, contribution);
+    else support = Math.max(support, contribution);
+  }
   const toe = p.toeSpring * smoothstep(0.72, 1, t) ** 2;
   // Raise the whole heel seat through 15% of the foot length. Cubic smoothstep
   // tapers this added thickness to zero at 60%, with zero slope at both joins.
   // The bottom remains on the print bed; the heel cup rim is added separately.
   const heelLift = p.heelLift * (1 - smoothstep(0.15, 0.6, t));
-  return p.baseThickness + cup + support + toe + heelLift;
+  // Reliefs cut the completed surface, including structural lifts and supports.
+  // Their deepest envelope avoids stacking cuts when relief footprints overlap.
+  return Math.max(
+    MIN_INSOLE_THICKNESS,
+    p.baseThickness + cup + support + toe + heelLift - cutDepth,
+  );
 }
 
 /** Top z in mm in canonical right-foot coordinates; mirror x for the left. */

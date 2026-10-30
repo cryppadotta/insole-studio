@@ -103,8 +103,8 @@ const features = [
   },
   {
     id: "met",
-    label: "Metatarsal pads",
-    caption: "Independent supports, each with its own shape.",
+    label: "Pads & recesses",
+    caption: "Raise supports or carve smooth relief into the surface.",
     icon: Footprints,
   },
   {
@@ -247,6 +247,12 @@ export default function InsoleApp() {
   const deferred = useDeferredValue(p);
   const selectedPad =
     p.pads.find((pad) => pad.id === selectedPadId) ?? p.pads[0];
+  const activeRaisedPadCount = p.pads.filter(
+    (pad) => pad.enabled && pad.operation !== "subtract",
+  ).length;
+  const activeCutCount = p.pads.filter(
+    (pad) => pad.enabled && pad.operation === "subtract",
+  ).length;
   const selectedDensityZone =
     p.density.zones.find((zone) => zone.id === selectedDensityZoneId) ??
     p.density.zones[0];
@@ -385,6 +391,7 @@ export default function InsoleApp() {
   const selectFeature = (next: Feature) => {
     setFeature(next);
     setStep(next === "outline" ? "shape" : "support");
+    if (mode === "density") setMode("solid");
   };
   const toggleLink = () => {
     lastEdit.current = 0;
@@ -730,7 +737,7 @@ export default function InsoleApp() {
               {step === "shape"
                 ? "Start with your dimensions. Fine-tune the outline with the orange landmarks."
                 : step === "support"
-                  ? "Shape each support above the base. Where arch and pads overlap, the higher surface wins."
+                  ? "Build support or carve a recess. Raised supports blend by height; negative pads remove material from the finished surface."
                   : step === "density"
                     ? "Choose infill and pattern for each region. Complete projects use 250°C throughout."
                     : "Check the footprint, then take your design to your slicer."}
@@ -1260,7 +1267,7 @@ export default function InsoleApp() {
                         ? `${p.heelCupHeight} mm rim · heel seat`
                         : f.id === "base"
                           ? `${p.baseThickness} mm base · ${p.heelLift} mm heel lift`
-                          : `${p.pads.filter((pad) => pad.enabled).length} active · ${p.pads.length} total`}
+                          : `${activeRaisedPadCount} raised · ${activeCutCount} cut${activeCutCount === 1 ? "" : "s"}`}
                   </small>
                 </span>
                 <ArrowRight size={14} />
@@ -1282,7 +1289,7 @@ export default function InsoleApp() {
           {issues.length ? "Review shoe dimensions" : "Geometry up to date"}
         </span>
         <span>
-          PARAMETRIC SOLID<span>·</span>MM<span>·</span>V3.0
+          PARAMETRIC SOLID<span>·</span>MM<span>·</span>V4.0
         </span>
         <span className="sole-autosave-footer">
           <CheckCheck size={11} />
@@ -1324,7 +1331,7 @@ export default function InsoleApp() {
                     {i === 0
                       ? "Measure your factory insole. Set its length and widths, then drag the orange outline landmarks. Your measured foot length and shoe limits live under Foot & shoe measurements."
                       : i === 1
-                        ? "Choose arch support, heel cup or metatarsal pads. Add or duplicate pads, rotate them, and adjust their length, width and position. Use Advanced slope & curve to flatten the tops and shape the falloff. Base & flex has base thickness, heel lift and toe lift; heel lift raises the whole heel seat. Drag landmarks in plan view to position supports."
+                        ? "Choose arch support, heel cup or Pads & recesses. Add raised pads for support or negative pads to carve material away. Move negative pads in X/Y and set Depth (Z); adjust width, length, rotation and Advanced slope & curve to shape the recess. Blue minus-marked footprints show cuts in plan view. Cuts retain at least 0.8 mm above the flat underside, and overlapping cuts use the deeper cut. Base & flex controls base thickness, heel lift and toe lift."
                         : i === 2
                           ? "Set a base infill, override supports, and add movable density regions. Export a PrusaSlicer 3MF to carry the geometry and local settings together. Colors show requested infill, not a measured compression simulation."
                           : "Download a full-size paper outline to check fit, then export a PrusaSlicer 3MF to keep your density regions. Choose your printer and material in the slicer. Save a project file to keep an editable copy."}

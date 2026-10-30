@@ -177,8 +177,9 @@ export default function InsoleOutline({
       const pad = next.pads.find((item) => item.id === padId);
       if (!pad) return;
       if (handle === "pad") {
-        pad.offset = Math.round(x * 2) / 2;
-        pad.position = Math.round((y / base.length) * 1000) / 1000;
+        if (Math.abs(x - pad.offset) > 1e-6) pad.offset = Math.round(x * 2) / 2;
+        if (Math.abs(y - pad.position * base.length) > 1e-6)
+          pad.position = Math.round(y * 10) / 10 / base.length;
       } else {
         const angle =
           (Math.atan2(y - pad.position * base.length, x - pad.offset) * 180) /
@@ -304,6 +305,8 @@ export default function InsoleOutline({
   const landmark = (handle: Handle, point: Point, pad?: MetPad) => {
     const position = handle === "arch" || handle === "pad";
     const rotation = handle === "rotation";
+    const cut = pad?.operation === "subtract";
+    const accent = cut ? "#427d9a" : "#dc8d58";
     const shown =
       handle === "arch"
         ? selected === "arch"
@@ -360,9 +363,9 @@ export default function InsoleOutline({
         <circle
           className="landmark-ring"
           r="7"
-          fill="#dc8d58"
+          fill={accent}
           fillOpacity="0.15"
-          stroke="#dc8d58"
+          stroke={accent}
           strokeWidth="0.5"
           style={
             active === `${handle}:${pad?.id ?? ""}` ? { opacity: 1 } : undefined
@@ -371,7 +374,7 @@ export default function InsoleOutline({
         <circle
           className="landmark-core"
           r={position || rotation ? 2.7 : 3.3}
-          fill={shown ? "#dc8d58" : "#e8f0e8"}
+          fill={shown ? accent : "#e8f0e8"}
           stroke="#fff9f0"
           strokeWidth="1.5"
         />
@@ -421,9 +424,10 @@ export default function InsoleOutline({
         </title>
         <desc id={`${id}-description`}>
           Drag orange landmarks to change length and widths. Drag the arch and
-          any pad to position them in two dimensions. The outer handle rotates
-          the selected pad. Focus a landmark and use arrow keys; hold Shift for
-          larger adjustments.
+          any pad to position them in two dimensions. Blue pads marked with a
+          minus carve the surface. Set their Depth (Z) in Pads & recesses. The
+          outer handle rotates the selected pad. Focus a landmark and use arrow
+          keys; hold Shift for larger adjustments.
         </desc>
         <defs>
           <pattern
@@ -590,6 +594,8 @@ export default function InsoleOutline({
             ))}
             {params.pads.map((pad, index) => {
               const chosen = selected === "met" && selectedPadId === pad.id;
+              const cut = pad.operation === "subtract";
+              const stroke = cut ? "#427d9a" : chosen ? "#bd8256" : "#83a88b";
               return (
                 <g
                   key={pad.id}
@@ -603,20 +609,27 @@ export default function InsoleOutline({
                   onFocus={() => select("pad", pad.id)}
                 >
                   <title>
-                    {pad.name} · {pad.enabled ? "Drag to move" : "Disabled"}
+                    {pad.name} · {cut ? `${pad.height} mm cut · ` : ""}
+                    {pad.enabled ? "Drag to move" : "Disabled"}
                   </title>
                   <ellipse
                     rx={pad.width / 2}
                     ry={pad.length / 2}
                     fill={
-                      pad.enabled ? (chosen ? "#e1b38b" : "#accab4") : "none"
+                      pad.enabled
+                        ? cut
+                          ? "#9cc7dc"
+                          : chosen
+                            ? "#e1b38b"
+                            : "#accab4"
+                        : "none"
                     }
                     fillOpacity={chosen ? 0.4 : 0.3}
-                    stroke={
-                      chosen ? "#bd8256" : pad.enabled ? "#83a88b" : "#a6aaa1"
-                    }
+                    stroke={pad.enabled ? stroke : "#a6aaa1"}
                     strokeWidth={chosen ? 1.1 : 0.75}
-                    strokeDasharray={pad.enabled ? "2.4 2.4" : "1 4"}
+                    strokeDasharray={
+                      pad.enabled ? (cut ? "4 2" : "2.4 2.4") : "1 4"
+                    }
                   />
                   {[0.42, 0.7].map((scale) => (
                     <ellipse
@@ -624,7 +637,7 @@ export default function InsoleOutline({
                       rx={(pad.width / 2) * scale}
                       ry={(pad.length / 2) * scale}
                       fill="none"
-                      stroke={chosen ? "#bd8256" : "#83a88b"}
+                      stroke={stroke}
                       opacity={pad.enabled ? 0.38 : 0.13}
                       strokeWidth="0.6"
                       pointerEvents="none"
@@ -635,10 +648,11 @@ export default function InsoleOutline({
                     y="-5"
                     textAnchor="middle"
                     fontSize="5.5"
-                    fill={chosen ? "#9a613d" : "#6c8c76"}
+                    fill={cut ? "#34657d" : chosen ? "#9a613d" : "#6c8c76"}
                     pointerEvents="none"
                     transform={`rotate(${mirror * pad.rotation})`}
                   >
+                    {cut ? "−" : ""}
                     {index + 1}
                   </text>
                 </g>
@@ -660,7 +674,9 @@ export default function InsoleOutline({
                 <g key={`rotor:${pad.id}`}>
                   <path
                     d={`M${center.x},${center.y} L${rotor.x},${rotor.y}`}
-                    stroke="#c68c60"
+                    stroke={
+                      pad.operation === "subtract" ? "#427d9a" : "#c68c60"
+                    }
                     strokeWidth="0.65"
                     strokeDasharray="2 2"
                     pointerEvents="none"

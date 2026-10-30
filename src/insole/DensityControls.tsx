@@ -127,7 +127,8 @@ export default function DensityControls({
           <ChevronDown size={14} />
         </summary>
         <p>
-          These regions move with the existing arch, heel and pads. The same
+          These regions move with the existing arch, heel and support pads.
+          Negative pads remove shape and have no infill of their own. The same
           controls are also in Add your support.
         </p>
         <DensityOverrideControl
@@ -144,21 +145,23 @@ export default function DensityControls({
           basePattern={d.pattern}
           onChange={(heel) => onChange({ ...p, density: { ...d, heel } })}
         />
-        {p.pads.map((pad, i) => (
-          <DensityOverrideControl
-            key={pad.id}
-            label={`Pad ${i + 1}`}
-            value={d.pads[pad.id] ?? null}
-            baseInfill={d.baseInfill}
-            basePattern={d.pattern}
-            onChange={(value) => {
-              const pads = { ...d.pads };
-              if (value) pads[pad.id] = value;
-              else delete pads[pad.id];
-              onChange({ ...p, density: { ...d, pads } });
-            }}
-          />
-        ))}
+        {p.pads
+          .filter((pad) => pad.operation !== "subtract")
+          .map((pad, i) => (
+            <DensityOverrideControl
+              key={pad.id}
+              label={`Pad ${i + 1}`}
+              value={d.pads[pad.id] ?? null}
+              baseInfill={d.baseInfill}
+              basePattern={d.pattern}
+              onChange={(value) => {
+                const pads = { ...d.pads };
+                if (value) pads[pad.id] = value;
+                else delete pads[pad.id];
+                onChange({ ...p, density: { ...d, pads } });
+              }}
+            />
+          ))}
       </details>
       <div className="sole-control-heading sole-section-break">
         <Layers3 size={15} />

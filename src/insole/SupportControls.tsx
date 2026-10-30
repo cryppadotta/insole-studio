@@ -3,6 +3,7 @@ import {
   Copy,
   Footprints,
   Layers3,
+  Minus,
   Plus,
   ShieldCheck,
   SlidersHorizontal,
@@ -10,7 +11,9 @@ import {
 } from "lucide-react";
 import {
   clampParams,
+  makeNegativePad,
   makePad,
+  MIN_INSOLE_THICKNESS,
   PAD_LIMITS,
   PARAM_LIMITS,
   type InsoleParams,
@@ -44,11 +47,13 @@ function ShapeEditor({
   curve1,
   curve2,
   onChange,
+  subtract = false,
 }: {
   label: string;
   plateau: number;
   curve1: number;
   curve2: number;
+  subtract?: boolean;
   onChange: (curve: {
     plateau: number;
     curve1: number;
@@ -71,7 +76,7 @@ function ShapeEditor({
                 })
               }
             >
-              {s.label}
+              {subtract && s.label === "Flat top" ? "Flat floor" : s.label}
             </button>
           ))}
         </div>
@@ -83,7 +88,11 @@ function ShapeEditor({
         </summary>
         <p>
           Drag the orange handles to shape the falloff. A wider plateau spreads
-          the height across a flatter top.
+          the{" "}
+          {subtract
+            ? "depth across a flatter floor"
+            : "height across a flatter top"}
+          .
         </p>
         <CurveEditor
           label={`${label} slope curve`}
@@ -93,7 +102,7 @@ function ShapeEditor({
           onChange={onChange}
         />
         <Measure
-          label={`${label} top plateau`}
+          label={`${label} ${subtract ? "floor" : "top"} plateau`}
           value={plateau * 100}
           min={0}
           max={90}
@@ -139,17 +148,26 @@ export default function SupportControls({
   onSelectedPad: (id: string) => void;
 }) {
   const active = p.pads.find((pad) => pad.id === selectedPadId) ?? p.pads[0];
+  const activeIsNegative = active?.operation === "subtract";
   const set = (key: NumericParamKey, value: number) =>
     onChange(clampParams({ ...p, [key]: value }));
-  const changePad = (next: MetPad) =>
+  const changePad = (next: MetPad) => {
+    const densityPads = { ...p.density.pads };
+    if (next.operation === "subtract") delete densityPads[next.id];
     onChange(
       clampParams({
         ...p,
         pads: p.pads.map((pad) => (pad.id === next.id ? next : pad)),
+        density: { ...p.density, pads: densityPads },
       }),
     );
-  const addPad = () => {
-    const pad = makePad(p.pads.length);
+  };
+  const addPad = (subtract = false) => {
+    const pad = subtract
+      ? makeNegativePad(
+          p.pads.filter((pad) => pad.operation === "subtract").length,
+        )
+      : makePad(p.pads.length);
     pad.position = Math.min(0.9, 0.63 + p.pads.length * 0.055);
     pad.offset = p.pads.length % 2 ? 15 : -12;
     onChange(clampParams({ ...p, pads: [...p.pads, pad] }));
@@ -236,7 +254,7 @@ export default function SupportControls({
           onClick={() => onFeature("met")}
         >
           <Footprints size={17} />
-          <span>Metatarsal pads</span>
+          <span>Pads & recesses</span>
           <span className="sole-pad-count">{p.pads.length}</span>
         </button>
         <button
@@ -314,16 +332,19 @@ export default function SupportControls({
       )}
       {feature === "met" && (
         <>
-          <div className="sole-pad-list" aria-label="Metatarsal pads">
+          <div className="sole-pad-list" aria-label="Pads and negative pads">
             {p.pads.map((pad, i) => (
               <div
                 key={pad.id}
-                className={`sole-pad-row ${active?.id === pad.id ? "active" : ""}`}
+                className={`sole-pad-row ${active?.id === pad.id ? "active" : ""} ${pad.operation === "subtract" ? "sole-negative-pad" : ""}`}
               >
                 <button onClick={() => onSelectedPad(pad.id)}>
                   <span>{String(i + 1).padStart(2, "0")}</span>
                   <strong>{pad.name}</strong>
-                  <small>{pad.height} mm</small>
+                  <small>
+                    {pad.operation === "subtract" ? "Cut · −" : "+"}
+                    {pad.height} mm
+                  </small>
                 </button>
                 <input
                   type="checkbox"
@@ -338,10 +359,17 @@ export default function SupportControls({
           </div>
           <button
             className="sole-button sole-full sole-add-pad"
-            onClick={addPad}
+            onClick={() => addPad()}
           >
             <Plus size={14} />
             Add metatarsal pad
+          </button>
+          <button
+            className="sole-button sole-full sole-add-pad sole-negative-pad"
+            onClick={() => addPad(true)}
+          >
+            <Minus size={14} />
+            Add negative pad
           </button>
           {active ? (
             <>
@@ -376,7 +404,7 @@ export default function SupportControls({
                         ...p.density,
                         pads: {
                           ...p.density.pads,
-                          ...(p.density.pads[active.id]
+                          ...(!activeIsNegative && p.density.pads[active.id]
                             ? { [pad.id]: { ...p.density.pads[active.id] } }
                             : {}),
                         },
@@ -405,42 +433,86 @@ export default function SupportControls({
                   the surface and export.
                 </p>
               )}
-              <DensityOverrideControl
-                label="Pad"
-                baseInfill={p.density.baseInfill}
-                basePattern={p.density.pattern}
-                value={p.density.pads[active.id] ?? null}
-                onChange={(value) => {
-                  const pads = { ...p.density.pads };
-                  if (value) pads[active.id] = value;
-                  else delete pads[active.id];
-                  onChange({ ...p, density: { ...p.density, pads } });
-                }}
-              />
-              <ShapeEditor
-                label="Pad"
-                plateau={active.plateau}
-                curve1={active.curve1}
-                curve2={active.curve2}
-                onChange={(c) => changePad({ ...active, ...c })}
-              />
-              {padField("height", "Pad height")}
+              <label className="sole-density-select sole-pad-operation">
+                Pad operation
+                <select
+                  aria-label="Pad operation"
+                  value={active.operation ?? "add"}
+                  onChange={(e) =>
+                    changePad({
+                      ...active,
+                      operation:
+                        e.target.value === "subtract" ? "subtract" : "add",
+                    })
+                  }
+                >
+                  <option value="add">Raise surface</option>
+                  <option value="subtract">Carve surface</option>
+                </select>
+              </label>
+              {!activeIsNegative && (
+                <DensityOverrideControl
+                  label="Pad"
+                  baseInfill={p.density.baseInfill}
+                  basePattern={p.density.pattern}
+                  value={p.density.pads[active.id] ?? null}
+                  onChange={(value) => {
+                    const pads = { ...p.density.pads };
+                    if (value) pads[active.id] = value;
+                    else delete pads[active.id];
+                    onChange({ ...p, density: { ...p.density, pads } });
+                  }}
+                />
+              )}
+              {!activeIsNegative && (
+                <ShapeEditor
+                  label="Pad"
+                  plateau={active.plateau}
+                  curve1={active.curve1}
+                  curve2={active.curve2}
+                  onChange={(c) => changePad({ ...active, ...c })}
+                />
+              )}
+              {padField(
+                "height",
+                activeIsNegative ? "Depth (Z)" : "Pad height",
+              )}
+              {activeIsNegative ? (
+                <>
+                  {padField("offset", "X position")}
+                  {padField("position", "Y position", "mm", p.length)}
+                </>
+              ) : (
+                <>
+                  {padField("position", "Pad position", "%", 100)}
+                  {padField("offset", "Pad lateral offset")}
+                </>
+              )}
               {padField("width", "Pad width")}
               {padField("length", "Pad length")}
-              {padField("position", "Pad position", "%", 100)}
-              {padField("offset", "Pad lateral offset")}
               {padField("rotation", "Pad rotation", "°")}
+              {activeIsNegative && (
+                <ShapeEditor
+                  label="Cut"
+                  subtract
+                  plateau={active.plateau}
+                  curve1={active.curve1}
+                  curve2={active.curve2}
+                  onChange={(c) => changePad({ ...active, ...c })}
+                />
+              )}
               <p className="sole-feature-description">
-                Arch and pad heights are measured above the same base. Where
-                they overlap, the higher surface wins; heights do not stack.
+                {activeIsNegative
+                  ? `Negative pads carve into the finished base and supports, leaving at least ${MIN_INSOLE_THICKNESS} mm of material. X moves across the insole; Y is measured from heel to toe. Z controls cut depth. Where cuts overlap, the deeper cut wins. Cuts inherit the surrounding material settings.`
+                  : "Arch and pad heights are measured above the same base. Where they overlap, the higher surface wins; heights do not stack."}
               </p>
             </>
           ) : (
             <div className="sole-empty-pads">
               <Footprints size={24} />
               <p>
-                Add a pad to start shaping the forefoot. You can use as many as
-                your design needs.
+                Add a support or negative pad to start shaping. You can use as
+                many as your design needs.
               </p>
             </div>
           )}

@@ -69,9 +69,9 @@ describe("insole project files", () => {
       ).toThrow(/material grade/);
     }
   });
-  it("round-trips editable v3 designs and keeps feet and pad objects independent", () => {
+  it("round-trips editable v4 designs and keeps feet and pad objects independent", () => {
     const linked = newProject();
-    expect(linked.version).toBe(3);
+    expect(linked.version).toBe(4);
     expect(linked.feet.left.pads).not.toBe(linked.feet.right.pads);
     expect(linked.feet.left.pads[0]).not.toBe(linked.feet.right.pads[0]);
     expect(parseInsoleProject(JSON.stringify(linked))).toEqual(linked);
@@ -103,7 +103,7 @@ describe("insole project files", () => {
     expect(restored.feet.right.pads[0].height).not.toBe(14);
   });
 
-  it("migrates original v1 measurements and pad dimensions into the editable v3 schema", () => {
+  it("migrates original v1 measurements and pad dimensions into the editable v4 schema", () => {
     const original = legacyProject();
     original.linked = false;
     original.feet.left = {
@@ -117,7 +117,7 @@ describe("insole project files", () => {
       metLength: 54,
     };
     const migrated = parseInsoleProject(JSON.stringify(original));
-    expect(migrated.version).toBe(3);
+    expect(migrated.version).toBe(4);
     expect(migrated.feet.left).toMatchObject({
       archHeight: 21,
       archPosition: 0.49,
@@ -171,7 +171,7 @@ describe("insole project files", () => {
     },
   );
 
-  it.each([1, 2, 3])(
+  it.each([1, 2, 3, 4])(
     "validates an explicitly supplied heel lift in v%i files",
     (version) => {
       const original = version === 1 ? legacyProject() : newProject();
@@ -247,7 +247,7 @@ describe("insole project files", () => {
     const invalid = [
       null,
       { ...project, format: "different-cad" },
-      { ...project, version: 4 },
+      { ...project, version: 5 },
       { ...project, feet: { right: project.feet.right } },
       {
         ...project,
@@ -321,6 +321,7 @@ describe("insole autosave storage", () => {
     const storage = memoryStorage();
     vi.stubGlobal("localStorage", storage);
     const previous = JSON.parse(JSON.stringify(newProject()));
+    previous.version = 3;
     previous.feet.left.toeSpring = 7;
     previous.feet.right.toeSpring = 7;
     delete previous.feet.left.heelLift;
@@ -352,10 +353,10 @@ describe("insole autosave storage", () => {
     storage.entries.set(STORAGE_KEY, JSON.stringify(legacyProject()));
     vi.stubGlobal("localStorage", storage);
     const project = loadInsoleProject();
-    expect(project.version).toBe(3);
+    expect(project.version).toBe(4);
     expect(project.feet.left.pads[0].length).toBe(38);
     saveInsoleProject(project);
-    expect(JSON.parse(storage.entries.get(STORAGE_KEY)!).version).toBe(3);
+    expect(JSON.parse(storage.entries.get(STORAGE_KEY)!).version).toBe(4);
   });
 
   it("keeps a previous valid autosave and recovers it if the primary becomes malformed", () => {
@@ -422,6 +423,7 @@ describe("insole autosave storage", () => {
 describe("density project persistence", () => {
   it("migrates old v3 regional settings using the base pattern and a 250°C default", () => {
     const previous = JSON.parse(JSON.stringify(newProject()));
+    previous.version = 3;
     for (const side of ["left", "right"] as const) {
       const density = previous.feet[side].density;
       delete density.temperature;

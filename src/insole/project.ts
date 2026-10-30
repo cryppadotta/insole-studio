@@ -26,7 +26,7 @@ export type Foot = "left" | "right";
 export type Pair = Record<Foot, InsoleParams>;
 export interface InsoleProject {
   format: "fieldwork-insole";
-  version: 3;
+  version: 4;
   name: string;
   feet: Pair;
   linked: boolean;
@@ -58,7 +58,7 @@ export interface StudioPreferences {
 
 export const newProject = (): InsoleProject => ({
   format: "fieldwork-insole",
-  version: 3,
+  version: 4,
   name: "Everyday insole",
   feet: {
     left: cloneParams(DEFAULT_PARAMS),
@@ -279,6 +279,12 @@ function readPads(value: unknown, side: Foot): MetPad[] {
       throw new Error(
         `Invalid ${context}: use a unique id, name, and enabled state.`,
       );
+    if (
+      Object.hasOwn(pad, "operation") &&
+      pad.operation !== "add" &&
+      pad.operation !== "subtract"
+    )
+      throw new Error(`Invalid ${context} operation: use add or subtract.`);
     ids.add(pad.id);
     for (const key of padKeys) {
       if (!validNumber(pad[key], PAD_LIMITS[key]))
@@ -289,6 +295,9 @@ function readPads(value: unknown, side: Foot): MetPad[] {
       id: pad.id,
       name: pad.name,
       enabled: pad.enabled,
+      ...(pad.operation === "add" || pad.operation === "subtract"
+        ? { operation: pad.operation }
+        : {}),
     };
     for (const key of padKeys) result[key] = pad[key] as number;
     return result;
@@ -298,7 +307,7 @@ function readPads(value: unknown, side: Foot): MetPad[] {
 function readFoot(
   value: unknown,
   side: Foot,
-  version: 1 | 2 | 3,
+  version: 1 | 2 | 3 | 4,
 ): InsoleParams {
   if (!isRecord(value)) throw new Error("The project must contain both feet.");
   // Heel lift was added to v3 without changing the format version. Omission
@@ -348,7 +357,7 @@ function readFoot(
     result[key] = number as number;
   }
   result.pads = readPads(value.pads, side);
-  if (version === 3)
+  if (version >= 3)
     result.density = readDensity(
       value.density,
       side,
@@ -416,26 +425,30 @@ export function sameParams(a: InsoleParams, b: InsoleParams): boolean {
         pad.id === other.id &&
         pad.name === other.name &&
         pad.enabled === other.enabled &&
+        (pad.operation ?? "add") === (other.operation ?? "add") &&
         padKeys.every((key) => pad[key] === other[key])
       );
     })
   );
 }
 
-/** Read a v3 project or migrate a v1/v2 project without dropping its shape. */
+/** Migrate v1–v3 files; v4 prevents old readers treating relief cuts as supports. */
 export function parseInsoleProject(text: string): InsoleProject {
   const value: unknown = JSON.parse(text);
   if (!isRecord(value))
     throw new Error("Choose a Fieldwork .insole.json project.");
   if (
     value.format !== "fieldwork-insole" ||
-    (value.version !== 1 && value.version !== 2 && value.version !== 3) ||
+    (value.version !== 1 &&
+      value.version !== 2 &&
+      value.version !== 3 &&
+      value.version !== 4) ||
     typeof value.name !== "string" ||
     value.name.length > 100 ||
     typeof value.linked !== "boolean"
   )
     throw new Error(
-      "This is not a supported insole project (versions 1, 2, or 3).",
+      "This is not a supported insole project (versions 1, 2, 3, or 4).",
     );
   if (!isRecord(value.feet))
     throw new Error("The project must contain both feet.");
@@ -462,7 +475,7 @@ export function parseInsoleProject(text: string): InsoleProject {
     throw new Error("Choose TPU Air 85A or 95A for the material grade.");
   return {
     format: "fieldwork-insole",
-    version: 3,
+    version: 4,
     name: value.name.trim() || "Untitled insole",
     feet,
     linked: value.linked,

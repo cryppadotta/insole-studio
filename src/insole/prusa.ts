@@ -374,6 +374,9 @@ function instructions(
   return `INSOLE STUDIO — ${side.toUpperCase()} INSOLE DENSITY DESIGN
 
 The insole is the one printable solid. All region meshes are NONPRINTING setting modifiers.
+Negative shaping pads are already cut into that solid; no cutter parts need importing.
+Reliefs retain a flat underside and at least 0.8 mm of material. Their remaining material
+uses the surrounding infill settings; cutters have no infill of their own.
 Infill percentage is a slicer setting, not a measurement of material density, Shore hardness, or compression.
 ${placementInstructions}
 ${materialGrade ? `\nMATERIAL CHOICE\n${TPU_AIR_MATERIALS[materialGrade].label} (active foaming).\n${profileMode === "complete" ? `The complete project applies one whole-insole temperature of ${thermal!.temperature} C and starting extrusion multiplier ${thermal!.multiplier}, alongside the MK4S standard 0.4 mm machine and 0.20 mm print presets.` : `This is a material reminder, not an applied filament preset. Import the matching ${TPU_AIR_MATERIALS[materialGrade].profileFilename} bundle and select your calibrated preset in PrusaSlicer.`}\nStarting flow is a midpoint of the manufacturer's grade-specific guide range.\nReference starting extrusion multiplier ${thermal!.multiplier} at ${thermal!.temperature} C.\nLeave printer flow at 100%. Recalibrate for your spool; do not use Air settings for non-foaming TPU.\nThe separate downloadable preset bundle still contains its named 240 C and 250 C starters.\nManufacturer guide: ${TPU_AIR_MATERIALS[materialGrade].guideUrl}\n` : ""}
